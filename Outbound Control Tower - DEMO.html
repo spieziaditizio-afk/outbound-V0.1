@@ -1,0 +1,1778 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="work">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outbound Control Tower</title>
+<meta name="description" content="Live delivery status board and cone marker allocation for the Special Operations Area.">
+<style>
+/* ============================================================
+   OUTBOUND CONTROL TOWER — Special Operations Area, Sevenum
+   Single-file offline demo. No network requests, no build step.
+   ============================================================ */
+
+:root{
+  /* Chrome stays almost colourless so the cone colours are the only
+     saturated thing on screen. That is a functional requirement, not taste. */
+  --board:#EEF0F2;
+  --board-2:#E3E6EA;
+  --tile:#FFFFFF;
+  --ink:#1F2933;
+  --ink-2:#55616E;
+  --ink-3:#8593A1;
+  --rule:#C9CFD6;
+  --rule-soft:#DEE3E8;
+
+  /* Chrome is fixed: the top bar and toasts stay dark in TV mode too. */
+  --chrome:#1F2933;
+  --chrome-ink:#E4E9EE;
+  --chrome-dim:#8B98A5;
+
+  --accent:#FFB300;        /* warehouse amber — attention only */
+  --accent-ink:#4A3200;
+  --alert:#D7263D;         /* the red of the pick label */
+  --ok:#2E9E4F;
+
+  --lane-w:188px;
+  --gap:14px;
+  --fs-base:14px;
+
+  --font:"Bahnschrift","DIN Alternate","Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+
+  color-scheme:light;
+}
+
+html[data-mode="tv"]{
+  --board:#151A20;
+  --board-2:#1E252D;
+  --tile:#232B34;
+  --ink:#EAEEF2;
+  --ink-2:#A3AFBB;
+  --ink-3:#74818E;
+  --rule:#3A4450;
+  --rule-soft:#2C343D;
+  --lane-w:120px;
+  --fs-base:17px;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:var(--font);
+  font-size:var(--fs-base);
+  font-variant-numeric:tabular-nums;
+  background:var(--board);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+button,input,select{font:inherit;font-variant-numeric:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+h1,h2,h3,p{margin:0}
+
+.hidden{display:none !important}
+
+/* ---------- buttons ---------- */
+.btn{
+  border:1px solid var(--rule);
+  background:var(--tile);
+  color:var(--ink);
+  border-radius:2px;
+  padding:8px 14px;
+  line-height:1.1;
+  transition:background .12s,border-color .12s;
+}
+.btn:hover{background:var(--board-2);border-color:var(--ink-3)}
+.btn-primary{background:var(--ink);color:var(--board);border-color:var(--ink)}
+.btn-primary:hover{background:var(--ink-2);border-color:var(--ink-2)}
+.btn-accent{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn-accent:hover{background:#E8A300;border-color:#E8A300}
+.btn-quiet{background:transparent;border-color:transparent;color:var(--ink-2);padding:6px 9px}
+.btn-quiet:hover{background:var(--board-2);color:var(--ink)}
+.btn-danger{border-color:var(--alert);color:var(--alert);background:transparent}
+.btn-danger:hover{background:var(--alert);color:#fff}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.btn-sm{padding:5px 10px;font-size:.86em}
+
+/* ============================================================
+   LOGIN
+   ============================================================ */
+#login{
+  position:fixed;inset:0;z-index:60;
+  background:var(--board);
+  display:grid;grid-template-columns:1.05fr .95fr;
+}
+.login-brand{
+  background:var(--chrome);color:var(--chrome-ink);
+  padding:48px 52px;
+  display:flex;flex-direction:column;justify-content:space-between;
+  position:relative;overflow:hidden;
+}
+.login-brand .hazard{
+  position:absolute;left:0;right:0;top:0;height:9px;
+  background:repeating-linear-gradient(135deg,var(--accent) 0 16px,var(--chrome) 16px 32px);
+}
+.login-brand h1{font-size:44px;font-weight:600;line-height:1.02;letter-spacing:-.01em;max-width:11ch}
+.login-brand .sub{color:#9AA7B4;margin-top:14px;max-width:34ch;line-height:1.45}
+.login-cones{display:flex;gap:10px;align-items:flex-end;margin:34px 0}
+.login-foot{color:#6E7C8A;font-size:.85em;line-height:1.5}
+.login-panel{padding:48px 52px;display:flex;flex-direction:column;justify-content:center;overflow:auto}
+.login-panel h2{font-size:22px;font-weight:600;margin-bottom:4px}
+.login-panel .hint{color:var(--ink-2);margin-bottom:22px}
+.user-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:520px}
+.user-btn{
+  text-align:left;border:1px solid var(--rule);background:var(--tile);
+  border-radius:2px;padding:11px 13px;display:flex;flex-direction:column;gap:3px;
+  border-left:5px solid var(--rule);
+}
+.user-btn:hover{border-color:var(--ink-3);border-left-color:var(--accent)}
+.user-btn[aria-pressed="true"]{border-color:var(--ink);border-left-color:var(--accent);background:var(--board-2)}
+.user-btn .nm{font-weight:600}
+.user-btn .rl{color:var(--ink-2);font-size:.85em}
+.pin-row{display:flex;gap:10px;align-items:center;margin-top:22px;max-width:520px}
+#pin{
+  border:1px solid var(--rule);border-radius:2px;padding:11px 14px;width:140px;
+  letter-spacing:.5em;text-align:center;background:var(--tile);
+}
+.pin-note{color:var(--ink-3);font-size:.85em;margin-top:12px;max-width:52ch;line-height:1.5}
+#loginErr{color:var(--alert);margin-top:12px;min-height:1.2em}
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+#app{display:flex;flex-direction:column;height:100%}
+
+.topbar{
+  display:flex;align-items:center;gap:16px;
+  padding:0 16px;height:54px;flex:0 0 auto;
+  background:var(--chrome);color:var(--chrome-ink);
+  border-bottom:3px solid var(--accent);
+}
+.topbar .mark{font-weight:600;font-size:16px;letter-spacing:-.01em;white-space:nowrap}
+.topbar .mark span{color:var(--accent)}
+.topbar .where{color:var(--chrome-dim);font-size:.85em;border-left:1px solid #3A4550;padding-left:16px;white-space:nowrap}
+.nav{display:flex;gap:2px;margin-left:10px}
+.nav button{
+  background:transparent;border:0;color:#95A2AF;padding:8px 13px;border-radius:2px;
+  border-bottom:3px solid transparent;
+}
+.nav button:hover{color:#fff;background:#2A343F}
+.nav button[aria-current="true"]{color:#fff;border-bottom-color:var(--accent)}
+.topbar .spacer{flex:1}
+.live{display:flex;align-items:center;gap:7px;color:var(--chrome-dim);font-size:.85em;white-space:nowrap}
+.live .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(46,158,79,.22)}
+.whoami{display:flex;align-items:center;gap:9px;font-size:.88em;white-space:nowrap}
+.whoami .nm{font-weight:600}
+.whoami .rl{color:var(--chrome-dim)}
+.topbar .btn{background:#2A343F;border-color:#3A4550;color:#D6DDE4}
+.topbar .btn:hover{background:#354049;border-color:#57646F}
+
+main{flex:1;min-height:0;position:relative}
+.view{position:absolute;inset:0;overflow:auto}
+
+/* ---------- KPI strip ---------- */
+.kpis{
+  display:flex;gap:0;background:var(--board-2);
+  border-bottom:1px solid var(--rule);flex:0 0 auto;
+}
+.kpi{padding:9px 18px;border-right:1px solid var(--rule-soft);display:flex;align-items:baseline;gap:8px}
+.kpi b{font-size:20px;font-weight:600;line-height:1}
+.kpi span{color:var(--ink-2);font-size:.85em}
+.kpi.warn b{color:var(--alert)}
+.kpi.warn span{color:var(--alert)}
+
+/* ============================================================
+   BOARD
+   ============================================================ */
+#viewBoard{display:flex;flex-direction:column;overflow:hidden}
+.board-scroll{flex:1;min-height:0;overflow:auto;padding:var(--gap)}
+.board{display:grid;grid-template-columns:repeat(7,minmax(var(--lane-w),1fr));gap:var(--gap);min-height:100%;align-items:stretch}
+
+.lane{
+  background:var(--board-2);
+  border:1px solid var(--rule-soft);
+  border-radius:2px;
+  display:flex;flex-direction:column;min-height:180px;
+}
+.lane.drop{border-color:var(--accent);background:rgba(255,179,0,.13)}
+.lane-head{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 11px;border-bottom:1px solid var(--rule-soft);
+  position:sticky;top:0;background:var(--board-2);z-index:2;border-radius:2px 2px 0 0;
+}
+.lane-head .nm{font-weight:600;line-height:1.15;flex:1}
+.lane-head .ct{
+  border:1px solid var(--rule);background:var(--tile);border-radius:2px;
+  min-width:26px;text-align:center;padding:1px 6px;font-weight:600;font-size:.9em;
+}
+.lane-head .pl{color:var(--ink-3);font-size:.8em}
+.lane-body{padding:9px;display:flex;flex-direction:column;gap:9px;flex:1}
+.lane-empty{color:var(--ink-3);font-size:.86em;padding:10px 3px;line-height:1.45}
+
+/* ---------- the magnetic tile ---------- */
+.tile{
+  background:var(--tile);
+  border:1px solid var(--rule);
+  border-left:6px solid var(--edge,var(--rule));
+  border-radius:2px;
+  padding:9px 10px 0 10px;
+  cursor:grab;
+  position:relative;
+  display:block;width:100%;text-align:left;
+  font:inherit;color:inherit;
+  transition:border-color .12s,transform .12s;
+}
+.tile:hover{border-color:var(--ink-3);border-left-color:var(--edge,var(--rule))}
+.tile:active{cursor:grabbing}
+.tile.dragging{opacity:.4}
+.tile.flash{animation:flash .9s ease-out}
+@keyframes flash{
+  0%{box-shadow:inset 0 0 0 3px var(--accent)}
+  100%{box-shadow:inset 0 0 0 3px rgba(255,179,0,0)}
+}
+.tile-top{display:flex;align-items:flex-start;gap:9px}
+.tile-mk{flex:0 0 auto;padding-top:1px}
+.tile-id{flex:1;min-width:0}
+.tile-id .dn{display:block;font-weight:600;font-size:1.06em;line-height:1.1;letter-spacing:.01em;overflow-wrap:anywhere}
+.tile-id .mkname{display:block;color:var(--ink-2);font-size:.82em;line-height:1.3;margin-top:2px}
+.tile-cty{display:inline-flex;align-items:center;gap:4px;flex:0 0 auto}
+.tile-cty .cc{font-weight:600;font-size:.86em}
+.tile-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;color:var(--ink-2);font-size:.82em}
+.tile-meta .held{white-space:nowrap}
+.tile-meta .pk{font-weight:600;color:var(--ink)}
+.tile-meta .sp{flex:1}
+.age{height:3px;margin:8px -10px 0 -10px;background:var(--rule-soft);position:relative;overflow:hidden}
+.age i{position:absolute;inset:0 auto 0 0;background:var(--ok);display:block}
+.age[data-s="warn"] i{background:var(--accent)}
+.age[data-s="late"] i{background:var(--alert)}
+.tile-meta .prio{color:var(--alert);font-weight:600}
+
+/* ---------- marker drawing ---------- */
+.mk{display:block}
+.mk-inline{display:inline-flex;align-items:center;gap:8px}
+
+/* ============================================================
+   DETAIL DRAWER
+   ============================================================ */
+#drawer{
+  position:absolute;top:0;right:0;bottom:0;width:390px;max-width:92vw;z-index:30;
+  background:var(--tile);border-left:1px solid var(--rule);
+  display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .18s ease-out;
+}
+#drawer.open{transform:none}
+.dr-head{padding:16px 18px;border-bottom:1px solid var(--rule-soft);display:flex;gap:12px;align-items:flex-start}
+.dr-head .dn{font-size:21px;font-weight:600;line-height:1.05}
+.dr-head .sub{color:var(--ink-2);font-size:.88em;margin-top:3px}
+.dr-body{flex:1;overflow:auto;padding:18px}
+.dr-foot{padding:14px 18px;border-top:1px solid var(--rule-soft);display:flex;flex-wrap:wrap;gap:8px}
+.dr-sect{margin-bottom:20px}
+.dr-sect > h3{font-size:.86em;font-weight:600;color:var(--ink-2);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--rule-soft)}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.92em}
+.facts dt{color:var(--ink-2)}
+.facts dd{margin:0;font-weight:600}
+.trail{display:flex;flex-direction:column;gap:0;font-size:.86em}
+.trail li{display:grid;grid-template-columns:62px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--rule-soft);list-style:none}
+.trail li:last-child{border-bottom:0}
+.trail .t{color:var(--ink-3)}
+.trail .w{color:var(--ink-2)}
+.trail b{font-weight:600;color:var(--ink)}
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+.scrim{position:fixed;inset:0;background:rgba(20,26,32,.55);z-index:40;display:flex;align-items:center;justify-content:center;padding:24px}
+.modal{
+  background:var(--tile);border:1px solid var(--rule);border-radius:2px;
+  width:560px;max-width:100%;max-height:100%;display:flex;flex-direction:column;
+}
+.modal.wide{width:760px}
+.md-head{padding:18px 22px;border-bottom:1px solid var(--rule-soft);display:flex;align-items:flex-start;gap:14px}
+.md-head h2{font-size:19px;font-weight:600}
+.md-head p{color:var(--ink-2);font-size:.88em;margin-top:3px;line-height:1.4}
+.md-body{padding:22px;overflow:auto}
+.md-foot{padding:15px 22px;border-top:1px solid var(--rule-soft);display:flex;gap:9px;justify-content:flex-end;align-items:center}
+.md-foot .sp{flex:1}
+
+.field{margin-bottom:16px}
+.field > label{display:block;font-weight:600;margin-bottom:5px}
+.field .help{color:var(--ink-2);font-size:.84em;margin-top:5px;line-height:1.45}
+.field input,.field select{
+  width:100%;border:1px solid var(--rule);border-radius:2px;padding:10px 12px;background:var(--tile);
+}
+.field input:focus,.field select:focus{border-color:var(--ink)}
+.field.bad input,.field.bad select{border-color:var(--alert)}
+.field .err{color:var(--alert);font-size:.84em;margin-top:5px;min-height:1em}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.check{display:flex;gap:9px;align-items:flex-start;cursor:pointer}
+.check input{width:auto;margin-top:3px}
+
+/* ---------- assignment ticket ---------- */
+.ticket{border:2px solid var(--chrome);border-radius:2px;padding:0;overflow:hidden}
+.ticket-hz{height:8px;background:repeating-linear-gradient(135deg,var(--accent) 0 14px,var(--chrome) 14px 28px)}
+.ticket-in{padding:24px;display:flex;gap:26px;align-items:center}
+.ticket-mk{flex:0 0 auto}
+.ticket-tx{flex:1;min-width:0}
+.ticket-tx .lbl{color:var(--ink-2);font-size:.88em}
+.ticket-tx .dn{font-size:30px;font-weight:600;line-height:1.05;margin:2px 0 10px}
+.ticket-tx .mkname{font-size:20px;font-weight:600;line-height:1.2}
+.ticket-tx .qty{margin-top:12px;color:var(--ink-2);line-height:1.5}
+.ticket-tx .qty b{color:var(--ink)}
+.ticket-why{border-top:1px solid var(--rule-soft);padding:12px 24px;color:var(--ink-2);font-size:.86em;line-height:1.5;background:var(--board)}
+
+/* ============================================================
+   INVENTORY
+   ============================================================ */
+.pad{padding:var(--gap) var(--gap) 40px}
+.vhead{display:flex;align-items:flex-end;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.vhead h2{font-size:22px;font-weight:600;line-height:1.1}
+.vhead p{color:var(--ink-2);font-size:.9em;margin-top:4px;max-width:70ch;line-height:1.5}
+.vhead .sp{flex:1}
+
+.note{
+  border:1px solid var(--rule);border-left:5px solid var(--accent);border-radius:2px;
+  background:var(--tile);padding:13px 16px;margin-bottom:18px;line-height:1.55;max-width:96ch;
+}
+.note.bad{border-left-color:var(--alert)}
+.note b{font-weight:600}
+
+.stockgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:var(--gap)}
+.stockcard{background:var(--tile);border:1px solid var(--rule);border-radius:2px}
+.stockcard > header{padding:12px 14px;border-bottom:1px solid var(--rule-soft)}
+.stockcard > header .nm{font-weight:600}
+.stockcard > header .ds{color:var(--ink-2);font-size:.84em;margin-top:2px;line-height:1.4}
+.stockrow{display:grid;grid-template-columns:34px 1fr 96px;gap:11px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--rule-soft)}
+.stockrow:last-child{border-bottom:0}
+.stockrow .cname{display:block;font-size:.92em;margin-bottom:4px}
+.bar{display:block;height:12px;background:var(--board-2);border:1px solid var(--rule-soft);position:relative;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0;left:0;display:block}
+.stockrow .num{text-align:right;font-size:.88em;color:var(--ink-2)}
+.stockrow .num b{color:var(--ink);font-weight:600}
+.stockrow.out .num b{color:var(--alert)}
+
+/* ============================================================
+   TABLES (returns / audit)
+   ============================================================ */
+table.tbl{width:100%;border-collapse:collapse;background:var(--tile);border:1px solid var(--rule)}
+.tbl th{
+  text-align:left;font-weight:600;font-size:.86em;color:var(--ink-2);
+  padding:9px 12px;border-bottom:1px solid var(--rule);background:var(--board-2);
+  position:sticky;top:0;
+}
+.tbl td{padding:9px 12px;border-bottom:1px solid var(--rule-soft);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tbody tr:hover{background:var(--board)}
+.tbl .r{text-align:right}
+.empty{padding:34px 16px;text-align:center;color:var(--ink-3);line-height:1.6;background:var(--tile);border:1px solid var(--rule)}
+.empty b{display:block;color:var(--ink-2);font-weight:600;margin-bottom:4px}
+
+.pill{display:inline-block;border:1px solid var(--rule);border-radius:2px;padding:1px 7px;font-size:.82em;background:var(--board-2)}
+.pill.ok{border-color:var(--ok);color:var(--ok)}
+.pill.warn{border-color:var(--accent);color:#9A6C00}
+.pill.bad{border-color:var(--alert);color:var(--alert)}
+
+/* ============================================================
+   TOASTS
+   ============================================================ */
+#toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:70;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{
+  background:var(--chrome);color:var(--chrome-ink);border-radius:2px;padding:10px 16px;
+  border-left:5px solid var(--accent);max-width:70ch;line-height:1.4;
+  animation:toastin .16s ease-out;
+}
+.toast.bad{border-left-color:var(--alert)}
+.toast.good{border-left-color:var(--ok)}
+@keyframes toastin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ============================================================
+   TV MODE
+   ============================================================ */
+html[data-mode="tv"] body{overflow:hidden}
+html[data-mode="tv"] .nav,
+html[data-mode="tv"] #drawer,
+html[data-mode="tv"] .whoami,
+html[data-mode="tv"] #btnNew,
+html[data-mode="tv"] #btnScreen,
+html[data-mode="tv"] #btnOut,
+html[data-mode="tv"] .kpi-hideontv{display:none}
+html[data-mode="tv"] .topbar{height:66px;border-bottom-width:4px}
+html[data-mode="tv"] .topbar .mark{font-size:22px}
+html[data-mode="tv"] .board{grid-template-columns:repeat(7,minmax(0,1fr))}
+html[data-mode="tv"] .board-scroll{padding:12px}
+html[data-mode="tv"] .tile{cursor:default;padding:11px 12px 0 12px}
+html[data-mode="tv"] .tile-id .dn{font-size:1.34em}
+html[data-mode="tv"] .tile-meta{font-size:.8em}
+html[data-mode="tv"] .lane-head{padding:11px 13px}
+html[data-mode="tv"] .lane-head .ct{font-size:1.05em;min-width:34px}
+html[data-mode="tv"] .kpi b{font-size:26px}
+#tvclock{font-variant-numeric:tabular-nums;font-weight:600;font-size:20px;color:var(--chrome-ink)}
+
+/* ============================================================
+   PRINT — only the assignment ticket
+   ============================================================ */
+@media print{
+  body{overflow:visible;background:#fff}
+  #app,#login,.topbar,#toasts,.md-head,.md-foot,.ticket-why{display:none !important}
+  .scrim{position:static;background:none;padding:0;display:block}
+  .modal{border:0;width:auto;max-height:none}
+  .md-body{padding:0;overflow:visible}
+  .ticket{border-color:#000}
+  .ticket-hz{background:repeating-linear-gradient(135deg,#FFB300 0 14px,#1F2933 14px 28px);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:1100px){
+  #login{grid-template-columns:1fr}
+  .login-brand{padding:30px 26px}
+  .login-brand h1{font-size:32px}
+  .login-cones{margin:20px 0}
+  .login-panel{padding:26px}
+  .user-grid{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .topbar{height:auto;flex-wrap:wrap;padding:8px 12px;gap:8px}
+  .topbar .where,.live{display:none}
+  .nav{margin-left:0;order:3;width:100%;overflow-x:auto}
+  .kpis{overflow-x:auto}
+  .row2{grid-template-columns:1fr}
+  #drawer{width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<section id="login">
+  <div class="login-brand">
+    <div class="hazard"></div>
+    <div>
+      <h1>Outbound Control Tower</h1>
+      <p class="sub">Every delivery on the floor, the cone that marks its pallets, and who moved it last.</p>
+    </div>
+    <div class="login-cones" id="loginCones"></div>
+    <p class="login-foot">
+      Special Operations Area &nbsp;/&nbsp; Sevenum, Netherlands<br>
+      Demonstration build &mdash; data stays in this browser.
+    </p>
+  </div>
+  <div class="login-panel">
+    <h2>Who is working this station?</h2>
+    <p class="hint">Pick your name, then enter your PIN.</p>
+    <div class="user-grid" id="userGrid"></div>
+    <div class="pin-row">
+      <input id="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" aria-label="PIN">
+      <button class="btn btn-primary" id="btnLogin">Start shift</button>
+    </div>
+    <p id="loginErr" role="alert"></p>
+    <p class="pin-note">Demo PINs are printed on each name so anyone can try any role. A real installation would use your Windows account instead.</p>
+  </div>
+</section>
+
+<!-- ================= APP ================= -->
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div class="mark">Outbound <span>Control Tower</span></div>
+    <div class="where">Special Operations Area &middot; Sevenum</div>
+    <nav class="nav" id="nav">
+      <button data-view="board" aria-current="true">Board</button>
+      <button data-view="cones">Cone stock</button>
+      <button data-view="returns">Cone returns</button>
+      <button data-view="log">Activity</button>
+    </nav>
+    <div class="spacer"></div>
+    <div id="tvclock" class="hidden"></div>
+    <div class="live" id="live"><span class="dot"></span><span id="liveTxt">1 screen connected</span></div>
+    <div class="whoami" id="whoami"></div>
+    <button class="btn btn-sm btn-accent" id="btnNew">Register delivery</button>
+    <button class="btn btn-sm" id="btnScreen" title="Open a second board window to show live sync">Second screen</button>
+    <button class="btn btn-sm" id="btnTv" title="Full screen board for the wall monitor">TV mode</button>
+    <button class="btn btn-sm" id="btnOut">Sign out</button>
+  </header>
+
+  <main>
+    <!-- ---------- BOARD ---------- -->
+    <section class="view" id="viewBoard">
+      <div class="kpis" id="kpis"></div>
+      <div class="board-scroll">
+        <div class="board" id="board"></div>
+      </div>
+      <aside id="drawer" aria-label="Delivery detail"></aside>
+    </section>
+
+    <!-- ---------- CONE STOCK ---------- -->
+    <section class="view hidden" id="viewCones">
+      <div class="pad">
+        <div class="vhead">
+          <div>
+            <h2>Cone stock</h2>
+            <p>What is on the rack right now, and what is out on the floor holding a delivery.</p>
+          </div>
+          <div class="sp"></div>
+        </div>
+        <div id="conePressure"></div>
+        <div class="stockgrid" id="stockGrid"></div>
+      </div>
+    </section>
+
+    <!-- ---------- RETURNS ---------- -->
+    <section class="view hidden" id="viewReturns">
+      <div class="pad">
+        <div class="vhead">
+          <div>
+            <h2>Cone returns</h2>
+            <p>These deliveries are on the truck. Their colour stays blocked until someone confirms the cones are back on the rack.</p>
+          </div>
+        </div>
+        <div id="returnsWrap"></div>
+      </div>
+    </section>
+
+    <!-- ---------- ACTIVITY ---------- -->
+    <section class="view hidden" id="viewLog">
+      <div class="pad">
+        <div class="vhead">
+          <div>
+            <h2>Activity</h2>
+            <p>Every status change, assignment and return, with the person and the time.</p>
+          </div>
+          <div class="sp"></div>
+          <button class="btn btn-danger btn-sm" id="btnReset">Reset demo data</button>
+        </div>
+        <div id="logWrap"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modalHost"></div>
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   1. REFERENCE DATA
+   ============================================================ */
+
+const COLOR_HEX = {
+  red:'#D7263D', yellow:'#F2C300', blue:'#1B6DC1', green:'#2E9E4F',
+  purple:'#6B2FB5', orange:'#F26722', pink:'#EC5FA5', white:'#FFFFFF', black:'#23272B'
+};
+const COLOR_NAME = {
+  red:'Red', yellow:'Yellow', blue:'Blue', green:'Green', purple:'Purple',
+  orange:'Orange', pink:'Pink', white:'White', black:'Black'
+};
+
+/* Physical stock counted on the rack in the Special Operations Area. */
+const STOCK = {
+  cone: { label:'Traffic cone 30 cm',  brand:'Mooffz',    note:'The base marker. One per pallet, sits on the top carton.',
+          counts:{ red:50, yellow:50, blue:50, green:50, purple:40, orange:10 } },
+  disc: { label:'Saucer cone',         brand:'Cawila',    note:'Goes on top of a traffic cone to make a two-colour marker.',
+          counts:{ red:25, purple:25, pink:25, orange:25, blue:25, white:25, black:25, yellow:25, green:25 } },
+  hex:  { label:'Pro HX saucer 200 mm',brand:'Precision', note:'Hexagonal topper. Reads differently from the round saucer at distance.',
+          counts:{ green:20, purple:20, yellow:20, red:20, orange:20 } }
+};
+const TOPPER_NAME = { disc:'disc', hex:'hex' };
+const TOPPER_PLURAL = { disc:'discs', hex:'hexes' };
+function topperWord(t, n){ return n === 1 ? TOPPER_NAME[t] : TOPPER_PLURAL[t]; }
+
+/* Colours that are hard to tell apart from a VNA cabin or across the yard.
+   Used only as a tie-breaker, never as a hard block. */
+const CONFUSABLE = [['red','orange'],['red','pink'],['orange','yellow'],['blue','purple'],['white','yellow'],['red','green']];
+
+const STATUSES = [
+  { id:'allocated',    name:'Allocated',         hint:'Pick labels printed',      sla:25 },
+  { id:'picking',      name:'Picking',           hint:'VNA working the racks',    sla:70 },
+  { id:'pick_dropped', name:'Pick dropped',      hint:'Waiting at the aisle head',sla:35 },
+  { id:'packing',      name:'Packing',           hint:'Counting against labels',  sla:80 },
+  { id:'strap',        name:'Strap and sealing', hint:'Wrapping and labelling',   sla:45 },
+  { id:'next_day',     name:'Pick up next day',  hint:'Staged, loads tomorrow',   sla:null },
+  { id:'today',        name:'Pick up today',     hint:'Staged, loads today',      sla:150 }
+];
+const STATUS_IDS = STATUSES.map(s => s.id);
+const STATUS_BY_ID = Object.fromEntries(STATUSES.map(s => [s.id, s]));
+const LOADED = 'loaded';   /* on the truck, cones not back yet */
+const CLOSED = 'closed';   /* cones returned, stock released   */
+
+const ROLES = {
+  business_support:{ name:'Business Support', move:'all',                                  create:true,  ret:true  },
+  packing:         { name:'Packing',          move:['picking','pick_dropped','packing','strap'], create:false, ret:false },
+  outbound:        { name:'Outbound / Docks', move:['strap','next_day','today',LOADED],    create:false, ret:true  },
+  team_leader:     { name:'Team Leader',      move:'all',                                  create:true,  ret:true  }
+};
+
+const USERS = [
+  { id:'u1', name:'A. Spiezia',  role:'business_support', pin:'1234' },
+  { id:'u2', name:'M. de Vries', role:'business_support', pin:'1111' },
+  { id:'u3', name:'J. Kowalski', role:'packing',          pin:'2222' },
+  { id:'u4', name:'R. Bakker',   role:'packing',          pin:'3333' },
+  { id:'u5', name:'S. Yilmaz',   role:'outbound',         pin:'4444' },
+  { id:'u6', name:'L. Janssen',  role:'outbound',         pin:'5555' },
+  { id:'u7', name:'P. Hendriks', role:'team_leader',      pin:'9999' }
+];
+
+/* ============================================================
+   2. COUNTRIES AND FLAGS
+   Windows does not render flag emoji, so every flag is drawn as SVG.
+   ============================================================ */
+const COUNTRIES = [
+  { c:'DE', n:'Germany',        f:['h3','#000000','#DD0000','#FFCE00'] },
+  { c:'FR', n:'France',         f:['v3','#002395','#FFFFFF','#ED2939'] },
+  { c:'IT', n:'Italy',          f:['v3','#009246','#FFFFFF','#CE2B37'] },
+  { c:'NL', n:'Netherlands',    f:['h3','#AE1C28','#FFFFFF','#21468B'] },
+  { c:'BE', n:'Belgium',        f:['v3','#000000','#FAE042','#ED2939'] },
+  { c:'ES', n:'Spain',          f:['es'] },
+  { c:'GB', n:'United Kingdom', f:['gb'] },
+  { c:'IE', n:'Ireland',        f:['v3','#169B62','#FFFFFF','#FF883E'] },
+  { c:'PT', n:'Portugal',       f:['pt'] },
+  { c:'PL', n:'Poland',         f:['h2','#FFFFFF','#DC143C'] },
+  { c:'CZ', n:'Czechia',        f:['cz'] },
+  { c:'AT', n:'Austria',        f:['h3','#ED2939','#FFFFFF','#ED2939'] },
+  { c:'HU', n:'Hungary',        f:['h3','#CE2939','#FFFFFF','#477050'] },
+  { c:'RO', n:'Romania',        f:['v3','#002B7F','#FCD116','#CE1126'] },
+  { c:'SE', n:'Sweden',         f:['nordic','#006AA7','#FECC00'] },
+  { c:'FI', n:'Finland',        f:['nordic','#FFFFFF','#003580'] },
+  { c:'DK', n:'Denmark',        f:['nordic','#C60C30','#FFFFFF'] },
+  { c:'NO', n:'Norway',         f:['no'] },
+  { c:'CH', n:'Switzerland',    f:['ch'] },
+  { c:'TR', n:'Turkey',         f:['tr'] },
+  { c:'IL', n:'Israel',         f:['il'] }
+];
+const COUNTRY_BY_CODE = Object.fromEntries(COUNTRIES.map(x => [x.c, x]));
+
+function flagSVG(code, h){
+  const c = COUNTRY_BY_CODE[code];
+  const w = Math.round(h * 1.5);
+  const open = `<svg class="flag" width="${w}" height="${h}" viewBox="0 0 24 16" role="img" aria-label="${c ? esc(c.n) : esc(code)}">`;
+  const frame = `<rect x="0" y="0" width="24" height="16" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="1"/></svg>`;
+  if (!c) return `${open}<rect width="24" height="16" fill="#B9C0C8"/><text x="12" y="11.5" font-size="8" font-family="sans-serif" text-anchor="middle" fill="#2A323A">${esc(code)}</text>${frame}`;
+  const f = c.f, k = f[0];
+  let g = '';
+  if (k === 'h3') {
+    g = `<rect width="24" height="5.34" fill="${f[1]}"/><rect y="5.34" width="24" height="5.33" fill="${f[2]}"/><rect y="10.67" width="24" height="5.33" fill="${f[3]}"/>`;
+  } else if (k === 'v3') {
+    g = `<rect width="8" height="16" fill="${f[1]}"/><rect x="8" width="8" height="16" fill="${f[2]}"/><rect x="16" width="8" height="16" fill="${f[3]}"/>`;
+  } else if (k === 'h2') {
+    g = `<rect width="24" height="8" fill="${f[1]}"/><rect y="8" width="24" height="8" fill="${f[2]}"/>`;
+  } else if (k === 'nordic') {
+    g = `<rect width="24" height="16" fill="${f[1]}"/><rect x="7" width="4" height="16" fill="${f[2]}"/><rect y="6" width="24" height="4" fill="${f[2]}"/>`;
+  } else if (k === 'no') {
+    g = `<rect width="24" height="16" fill="#BA0C2F"/><rect x="6.5" width="5" height="16" fill="#fff"/><rect y="5.5" width="24" height="5" fill="#fff"/>`
+      + `<rect x="8" width="2" height="16" fill="#00205B"/><rect y="7" width="24" height="2" fill="#00205B"/>`;
+  } else if (k === 'es') {
+    g = `<rect width="24" height="16" fill="#AA151B"/><rect y="4" width="24" height="8" fill="#F1BF00"/>`;
+  } else if (k === 'ch') {
+    g = `<rect width="24" height="16" fill="#D52B1E"/><rect x="10.5" y="3.5" width="3" height="9" fill="#fff"/><rect x="7.5" y="6.5" width="9" height="3" fill="#fff"/>`;
+  } else if (k === 'cz') {
+    g = `<rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/>`;
+  } else if (k === 'pt') {
+    g = `<rect width="24" height="16" fill="#DA291C"/><rect width="9.6" height="16" fill="#046A38"/><circle cx="9.6" cy="8" r="3.3" fill="#FFE900" stroke="#046A38" stroke-width=".7"/>`;
+  } else if (k === 'tr') {
+    g = `<rect width="24" height="16" fill="#E30A17"/><circle cx="9.5" cy="8" r="4" fill="#fff"/><circle cx="11" cy="8" r="3.2" fill="#E30A17"/>`
+      + `<path d="M15.1 8 L17.9 6.9 L16.4 9.3 L16.4 6.6 L17.9 9.1 Z" fill="#fff"/>`;
+  } else if (k === 'il') {
+    g = `<rect width="24" height="16" fill="#fff"/><rect y="2" width="24" height="2.2" fill="#0038B8"/><rect y="11.8" width="24" height="2.2" fill="#0038B8"/>`
+      + `<path d="M12 5 L14.6 9.6 L9.4 9.6 Z" fill="none" stroke="#0038B8" stroke-width="1"/>`
+      + `<path d="M12 11 L9.4 6.4 L14.6 6.4 Z" fill="none" stroke="#0038B8" stroke-width="1"/>`;
+  } else if (k === 'gb') {
+    g = `<rect width="24" height="16" fill="#012169"/>`
+      + `<path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.4"/>`
+      + `<path d="M0 0 L24 16 M24 0 L0 16" stroke="#C8102E" stroke-width="1.7"/>`
+      + `<path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5.4"/>`
+      + `<path d="M12 0 V16 M0 8 H24" stroke="#C8102E" stroke-width="3.2"/>`;
+  }
+  return open + g + frame;
+}
+
+/* ============================================================
+   3. MARKER DRAWING
+   A marker is a traffic cone, on its own or wearing a topper.
+   ============================================================ */
+function markerName(m){
+  if (!m) return 'Not assigned';
+  if (!m.cone) return COLOR_NAME[m.topperColor] + ' ' + TOPPER_NAME[m.topper];
+  const base = COLOR_NAME[m.cone] + ' cone';
+  if (!m.topper) return base;
+  return base + ' + ' + COLOR_NAME[m.topperColor].toLowerCase() + ' ' + TOPPER_NAME[m.topper];
+}
+function markerKey(m){ return m ? [m.cone, m.topper || '-', m.topperColor || '-'].join('|') : ''; }
+
+/* Short form for the board tiles, where a lane is only so wide. */
+function markerShort(m){
+  if (!m) return '—';
+  if (!m.topper) return COLOR_NAME[m.cone] + ' cone';
+  return COLOR_NAME[m.cone] + ' + ' + COLOR_NAME[m.topperColor].toLowerCase() + ' ' + TOPPER_NAME[m.topper];
+}
+
+function markerSVG(m, h){
+  const w = Math.round(h * 40 / 50);
+  const O = 'stroke="rgba(0,0,0,.45)" stroke-width="1.1" stroke-linejoin="round"';
+  if (!m) return `<svg width="${w}" height="${h}" viewBox="0 0 40 50" aria-hidden="true"></svg>`;
+  const cc = COLOR_HEX[m.cone];
+  const combo = !!m.topper;
+  const alone = !m.cone;                     /* topper drawn by itself */
+  const y0 = combo ? 21 : 7, aw = combo ? 3.6 : 4.2, hw = 13;
+  let g = '';
+  if (combo) {
+    const tc = COLOR_HEX[m.topperColor];
+    if (m.topper === 'disc') {
+      g += `<path d="M5 21 Q20 4 35 21 Z" fill="${tc}" ${O}/>`
+         + `<path d="M11.5 16 Q20 9.5 28.5 15" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.7" stroke-linecap="round"/>`;
+    } else {
+      g += `<path d="M5 14 L11 5 L29 5 L35 14 L29 21 L11 21 Z" fill="${tc}" ${O}/>`
+         + `<path d="M12 9 L26 9" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/>`;
+    }
+  }
+  if (alone) g = `<g transform="translate(0,14)">${g}</g>`;
+  else {
+    g += `<path d="M${20 - aw} ${y0} L${20 - hw} 42 L${20 + hw} 42 L${20 + aw} ${y0} Z" fill="${cc}" ${O}/>`;
+    g += `<path d="M${20 - aw + 1} ${y0 + 2} L${20 - hw + 3} 40" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.6" stroke-linecap="round"/>`;
+    g += `<rect x="3" y="42" width="34" height="5" rx="1" fill="${cc}" ${O}/>`;
+  }
+  return `<svg class="mk" width="${w}" height="${h}" viewBox="0 0 40 50" role="img" aria-label="${esc(markerName(m))}">${g}</svg>`;
+}
+
+/* ============================================================
+   4. HELPERS
+   ============================================================ */
+const $  = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, ch =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+}
+function now(){ return Date.now(); }
+function minsAgo(ts){ return Math.max(0, Math.round((now() - ts) / 60000)); }
+function clockTime(ts){
+  const d = new Date(ts);
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function dur(mins){
+  if (mins < 60) return mins + ' min';
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return m ? h + ' h ' + m + ' min' : h + ' h';
+}
+function isConfusable(a, b){
+  return CONFUSABLE.some(p => (p[0] === a && p[1] === b) || (p[1] === a && p[0] === b));
+}
+
+/* ============================================================
+   5. STATE
+   ============================================================ */
+const KEY = 'oct.demo.state.v1';
+const CHANNEL = 'oct.demo.sync.v1';
+
+let state = null;
+let me = null;               /* signed-in user */
+let view = 'board';
+let openDeliveryId = null;
+let tvMode = false;
+
+function blankState(){
+  return { v:1, seq:0, deliveries:[], log:[], lost:{ cone:{}, disc:{}, hex:{} }, seeded:false };
+}
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* private mode */ }
+  broadcast({ t:'state' });
+}
+function load(){
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) return s; }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+/* ---------- live sync between screens ----------
+   Three transports, because a file opened by double-click does not get a
+   normal origin and BroadcastChannel can go silent:
+     1. BroadcastChannel  — any tab on the same origin
+     2. window.postMessage — windows opened from the board, mesh-forwarded
+     3. the storage event  — last resort
+   Every message carries the full state, so no transport depends on
+   localStorage actually being writable.
+------------------------------------------------------------------ */
+let bc = null;
+const myTab = Math.random().toString(36).slice(2);
+const peers = new Map();
+const kids = new Set();
+const seen = [];
+
+function relays(){
+  const out = [];
+  if (window.opener && !window.opener.closed) out.push(window.opener);
+  for (const w of Array.from(kids)) { if (w.closed) kids.delete(w); else out.push(w); }
+  return out;
+}
+function broadcast(msg){
+  const m = Object.assign({ __oct:1, from:myTab, mid:Math.random().toString(36).slice(2) }, msg);
+  if (m.t === 'state') m.payload = state;
+  remember(m.mid);
+  if (bc) { try { bc.postMessage(m); } catch (e) {} }
+  send(m, null);
+}
+function send(m, notTo){
+  for (const w of relays()) { if (w !== notTo) { try { w.postMessage(m, '*'); } catch (e) {} } }
+}
+function remember(mid){
+  seen.push(mid);
+  if (seen.length > 200) seen.splice(0, 100);
+}
+function handle(m, src){
+  if (!m || m.__oct !== 1 || m.from === myTab) return;
+  if (seen.indexOf(m.mid) !== -1) return;
+  remember(m.mid);
+  if (m.t === 'state') {
+    const s = m.payload || load();
+    if (s && s.v === 1) { state = s; renderAll(); }
+  } else if (m.t === 'ping') {
+    peers.set(m.from, now()); paintPeers(); broadcast({ t:'pong' });
+  } else if (m.t === 'pong') {
+    peers.set(m.from, now()); paintPeers();
+  } else if (m.t === 'need') {
+    peers.set(m.from, now()); paintPeers();
+    if (state && state.seeded) broadcast({ t:'state' });
+  }
+  send(m, src);
+}
+function initSync(){
+  if ('BroadcastChannel' in window) {
+    try {
+      bc = new BroadcastChannel(CHANNEL);
+      bc.onmessage = ev => handle(ev.data, null);
+    } catch (e) { bc = null; }
+  }
+  window.addEventListener('message', ev => handle(ev.data, ev.source));
+  window.addEventListener('storage', ev => {
+    if (ev.key === KEY) { const s = load(); if (s) { state = s; renderAll(); } }
+  });
+  setInterval(() => {
+    broadcast({ t:'ping' });
+    for (const [k, t] of peers) if (now() - t > 9000) peers.delete(k);
+    paintPeers();
+  }, 3000);
+  broadcast({ t:'ping' });
+}
+function openSecondScreen(){
+  const w = window.open(location.href, '_blank', 'width=1280,height=820');
+  if (!w) { toast('The browser blocked the pop-up. Allow pop-ups for this page and try again.', 'bad'); return; }
+  kids.add(w);
+  setTimeout(() => broadcast({ t:'state' }), 900);
+  toast('Second screen open. Move a delivery in one window and watch the other.', 'good');
+}
+function paintPeers(){
+  const n = peers.size + 1;
+  const el = $('#liveTxt');
+  if (el) el.textContent = n === 1 ? '1 screen connected' : n + ' screens connected';
+}
+
+/* ============================================================
+   6. INVENTORY MATH
+   ============================================================ */
+function totalOf(type, color){
+  return (STOCK[type].counts[color] || 0) - ((state.lost[type] && state.lost[type][color]) || 0);
+}
+function reservations(){
+  const r = { cone:{}, disc:{}, hex:{} };
+  for (const d of state.deliveries) {
+    if (d.status === CLOSED || !d.marker) continue;
+    r.cone[d.marker.cone] = (r.cone[d.marker.cone] || 0) + d.picks;
+    if (d.marker.topper) {
+      const p = r[d.marker.topper];
+      p[d.marker.topperColor] = (p[d.marker.topperColor] || 0) + d.picks;
+    }
+  }
+  return r;
+}
+function freeOf(res, type, color){
+  return totalOf(type, color) - ((res[type] && res[type][color]) || 0);
+}
+function activeMarkerKeys(){
+  const s = new Set();
+  for (const d of state.deliveries) if (d.status !== CLOSED && d.marker) s.add(markerKey(d.marker));
+  return s;
+}
+function holderOf(key){
+  return state.deliveries.find(d => d.status !== CLOSED && d.marker && markerKey(d.marker) === key) || null;
+}
+
+/* ============================================================
+   7. ALLOCATION ENGINE
+   Rules, in order:
+     1. A marker in use by a live delivery is never reused.
+     2. Plain cones first. Combinations only when no plain cone fits.
+     3. Best fit: take the smallest colour pool that still covers the
+        pallet count, so the deep pools stay free for the big deliveries.
+     4. Never put a topper on a cone of its own colour, and avoid
+        colour pairs that are hard to read at distance.
+   ============================================================ */
+function coneUsage(){
+  const u = {};
+  for (const c of Object.keys(STOCK.cone.counts)) u[c] = 0;
+  for (const d of state.deliveries) if (d.status !== CLOSED && d.marker) u[d.marker.cone]++;
+  return u;
+}
+function topperUsage(){
+  const u = {};
+  for (const d of state.deliveries) {
+    if (d.status === CLOSED || !d.marker || !d.marker.topper) continue;
+    const k = d.marker.topperColor;
+    u[k] = (u[k] || 0) + 1;
+  }
+  return u;
+}
+
+function candidates(picks, res, used){
+  const coneColors = Object.keys(STOCK.cone.counts);
+  const use = coneUsage();
+  const tUse = topperUsage();
+  const tiers = [];
+
+  const plain = [];
+  for (const c of coneColors) {
+    const free = freeOf(res, 'cone', c);
+    if (free < picks) continue;
+    const m = { cone:c, topper:null, topperColor:null };
+    if (used.has(markerKey(m))) continue;
+    plain.push({ m, score: (free - picks) * 1000 });
+  }
+  tiers.push(plain);
+
+  /* One combination tier holding both topper shapes. Shape is a difference
+     an operator can read at distance, so a round saucer and a hexagon are
+     not interchangeable — the two stocks are drained evenly instead. */
+  const pressure = {};
+  for (const tt of ['disc','hex']) {
+    let tot = 0, out = 0;
+    for (const t of Object.keys(STOCK[tt].counts)) { tot += totalOf(tt, t); out += (res[tt] && res[tt][t]) || 0; }
+    pressure[tt] = tot ? out / tot : 1;
+  }
+
+  const combo = [];
+  for (const c of coneColors) {
+    const cf = freeOf(res, 'cone', c);
+    if (cf < picks) continue;
+    for (const tt of ['disc','hex']) {
+      for (const t of Object.keys(STOCK[tt].counts)) {
+        if (t === c) continue;
+        const tf = freeOf(res, tt, t);
+        if (tf < picks) continue;
+        const m = { cone:c, topper:tt, topperColor:t };
+        if (used.has(markerKey(m))) continue;
+        /* Spread the cone colours first: five purple cones with five different
+           toppers forces the operator to read the small piece instead of the
+           big one. Best fit then breaks the tie. */
+        combo.push({ m, score:
+            use[c] * 1e6
+          + (isConfusable(c, t) ? 5e5 : 0)
+          + Math.round(pressure[tt] * 3e5)
+          + (tUse[t] || 0) * 2e4
+          + (cf - picks) * 100
+          + (tf - picks) });
+      }
+    }
+  }
+  tiers.push(combo);
+  return tiers;
+}
+
+function allocate(picks){
+  const res = reservations(), used = activeMarkerKeys();
+  for (const tier of candidates(picks, res, used)) {
+    if (!tier.length) continue;
+    tier.sort((a, b) => a.score - b.score || markerKey(a.m).localeCompare(markerKey(b.m)));
+    return { marker: tier[0].m, alternatives: tier.slice(1, 6).map(x => x.m) };
+  }
+  return { marker:null, alternatives:[], reason: whyNothing(picks, res, used) };
+}
+
+function whyNothing(picks, res, used){
+  const coneColors = Object.keys(STOCK.cone.counts);
+  const fits = coneColors.filter(c => freeOf(res, 'cone', c) >= picks);
+  if (!fits.length) {
+    const best = Math.max(...coneColors.map(c => freeOf(res, 'cone', c)));
+    return `No colour has ${picks} free cones. The deepest pool has ${best}. Split the delivery or bring cones back from the docks.`;
+  }
+  return `Every marker that covers ${picks} pallets is already on the floor. Return cones from a loaded delivery to free one.`;
+}
+
+/* ============================================================
+   8. MUTATIONS
+   ============================================================ */
+function logEvent(kind, text, deliveryNo){
+  state.log.unshift({ at:now(), by:me ? me.id : 'system', byName:me ? me.name : 'System', kind, text, deliveryNo: deliveryNo || '' });
+  if (state.log.length > 400) state.log.length = 400;
+}
+
+function createDelivery({ no, country, picks, priority }){
+  const a = allocate(picks);
+  if (!a.marker) return { ok:false, reason:a.reason };
+  const d = {
+    id: 'd' + (++state.seq),
+    no, country, picks, priority: !!priority,
+    status: 'allocated',
+    marker: a.marker,
+    createdAt: now(), statusAt: now(),
+    history: [{ at:now(), status:'allocated', by:me.id, byName:me.name }],
+    loadedAt:null, returned:null
+  };
+  state.deliveries.push(d);
+  logEvent('assign', `Assigned ${markerName(a.marker).toLowerCase()} to ${no} — ${picks} pallet${picks === 1 ? '' : 's'}`, no);
+  save();
+  return { ok:true, delivery:d };
+}
+
+function canMove(role, to){
+  const r = ROLES[role];
+  if (!r) return false;
+  if (r.move === 'all') return true;
+  return r.move.includes(to);
+}
+
+function moveDelivery(id, to){
+  const d = state.deliveries.find(x => x.id === id);
+  if (!d || d.status === to) return { ok:false };
+  if (!canMove(me.role, to)) {
+    return { ok:false, reason:`${ROLES[me.role].name} cannot move a delivery into ${to === LOADED ? 'Loaded' : STATUS_BY_ID[to].name}.` };
+  }
+  d.status = to;
+  d.statusAt = now();
+  d.history.push({ at:now(), status:to, by:me.id, byName:me.name });
+  if (to === LOADED) d.loadedAt = now();
+  logEvent('move', `${d.no} moved to ${to === LOADED ? 'Loaded' : STATUS_BY_ID[to].name}`, d.no);
+  save();
+  return { ok:true };
+}
+
+function returnCones(id, coneBack, topperBack){
+  const d = state.deliveries.find(x => x.id === id);
+  if (!d || !d.marker) return { ok:false };
+  if (!ROLES[me.role].ret) return { ok:false, reason:`${ROLES[me.role].name} cannot confirm cone returns.` };
+  const lostCone = Math.max(0, d.picks - coneBack);
+  const lostTop  = d.marker.topper ? Math.max(0, d.picks - topperBack) : 0;
+  if (lostCone) state.lost.cone[d.marker.cone] = (state.lost.cone[d.marker.cone] || 0) + lostCone;
+  if (lostTop)  state.lost[d.marker.topper][d.marker.topperColor] = (state.lost[d.marker.topper][d.marker.topperColor] || 0) + lostTop;
+  d.status = CLOSED;
+  d.statusAt = now();
+  d.returned = { at:now(), by:me.id, byName:me.name, coneBack, topperBack, lostCone, lostTop };
+  d.history.push({ at:now(), status:CLOSED, by:me.id, byName:me.name });
+  const missing = lostCone + lostTop;
+  logEvent('return',
+    `${markerName(d.marker)} released from ${d.no}` + (missing ? ` — ${missing} piece${missing === 1 ? '' : 's'} missing` : ''),
+    d.no);
+  save();
+  return { ok:true, lostCone, lostTop };
+}
+
+/* ============================================================
+   9. SEED — a believable shift, built through the real engine
+   ============================================================ */
+const SEED = [
+  ['80412771','DE', 8,  'today',        118, false],
+  ['80412783','IT', 5,  'today',        62,  true ],
+  ['80412790','FR', 12, 'strap',        41,  false],
+  ['80412802','GB', 3,  'packing',      74,  false],
+  ['80412815','PL', 7,  'packing',      28,  false],
+  ['80412821','ES', 2,  'packing',      12,  false],
+  ['80412838','SE', 9,  'pick_dropped', 44,  false],
+  ['80412844','CZ', 4,  'pick_dropped', 9,   false],
+  ['80412857','NL', 14, 'picking',      52,  false],
+  ['80412863','TR', 6,  'picking',      21,  true ],
+  ['80412870','IL', 1,  'picking',      6,   false],
+  ['80412886','HU', 5,  'allocated',    16,  false],
+  ['80412899','RO', 10, 'allocated',    7,   false],
+  ['80412904','AT', 3,  'allocated',    2,   false],
+  ['80412917','FI', 6,  'next_day',     190, false],
+  ['80412923','DK', 4,  'next_day',     165, false],
+  ['80412936','NO', 11, 'next_day',     140, false],
+  ['80412942','CH', 2,  'next_day',     96,  false],
+  ['80412955','BE', 7,  'today',        33,  false],
+  ['80412968','IE', 5,  LOADED,         58,  false],
+  ['80412974','PT', 9,  LOADED,         26,  false]
+];
+
+function seed(){
+  state = blankState();
+  const keeper = me;
+  me = { id:'u2', name:'M. de Vries', role:'business_support' };
+  for (const [no, country, picks, status, ago, prio] of SEED) {
+    const r = createDelivery({ no, country, picks, priority:prio });
+    if (!r.ok) continue;
+    const d = r.delivery;
+    const t = now() - ago * 60000;
+    d.createdAt = t;
+    d.history[0].at = t;
+    if (status !== 'allocated') {
+      const idx = status === LOADED ? STATUS_IDS.length : STATUS_IDS.indexOf(status);
+      const steps = STATUS_IDS.slice(1, idx).concat(status === LOADED ? [LOADED] : []);
+      let cur = t;
+      const span = ago * 60000;
+      steps.forEach((s, i) => {
+        cur = t + Math.round(span * (i + 1) / (steps.length + 1));
+        d.history.push({ at:cur, status:s, by:'u3', byName:'J. Kowalski' });
+      });
+      d.status = status;
+      d.statusAt = cur;
+      if (status === LOADED) d.loadedAt = cur;
+    }
+  }
+  state.log = [];
+  state.log.push({ at:now(), by:'system', byName:'System', kind:'seed',
+                   text:`Demo data loaded — ${state.deliveries.length} deliveries across the board`, deliveryNo:'' });
+  state.seeded = true;
+  me = keeper;
+  save();
+}
+
+/* ============================================================
+   10. RENDER — shell
+   ============================================================ */
+function renderAll(){
+  if (!me) return;
+  renderWhoami();
+  renderKpis();
+  renderBoard();
+  renderCones();
+  renderReturns();
+  renderLog();
+  renderDrawer();
+}
+
+function renderWhoami(){
+  $('#whoami').innerHTML = `<span class="nm">${esc(me.name)}</span><span class="rl">${esc(ROLES[me.role].name)}</span>`;
+}
+
+function activeDeliveries(){ return state.deliveries.filter(d => STATUS_IDS.includes(d.status)); }
+function loadedDeliveries(){ return state.deliveries.filter(d => d.status === LOADED); }
+
+function maxPlaceable(){
+  const res = reservations(), used = activeMarkerKeys();
+  for (let n = 24; n >= 1; n--) {
+    if (candidates(n, res, used).some(t => t.length)) return n;
+  }
+  return 0;
+}
+
+function renderKpis(){
+  const act = activeDeliveries();
+  const pallets = act.reduce((s, d) => s + d.picks, 0);
+  const res = reservations();
+  const coneTotal = Object.keys(STOCK.cone.counts).reduce((s, c) => s + totalOf('cone', c), 0);
+  const coneUsed = Object.values(res.cone).reduce((s, n) => s + n, 0);
+  const wait = loadedDeliveries().length;
+  const cap = maxPlaceable();
+  const tight = cap < 10;
+
+  $('#kpis').innerHTML = [
+    kpi(act.length, 'on the board'),
+    kpi(pallets, 'pallets on the floor'),
+    kpi(coneUsed + ' / ' + coneTotal, 'cones out'),
+    kpi(wait, 'waiting for cone return'),
+    kpi(cap, 'pallets, largest delivery still placeable', tight)
+  ].join('');
+}
+function kpi(v, l, warn){
+  return `<div class="kpi${warn ? ' warn' : ''}"><b>${esc(v)}</b><span>${esc(l)}</span></div>`;
+}
+
+/* ============================================================
+   11. RENDER — board
+   ============================================================ */
+function ageState(d){
+  const s = STATUS_BY_ID[d.status];
+  if (!s || !s.sla) return { pct:0, s:'ok' };
+  const m = minsAgo(d.statusAt);
+  const pct = Math.min(1, m / s.sla);
+  return { pct, s: pct >= 1 ? 'late' : pct > .66 ? 'warn' : 'ok', mins:m };
+}
+
+function tileHTML(d){
+  const a = ageState(d);
+  const c = COUNTRY_BY_CODE[d.country];
+  const held = minsAgo(d.statusAt);
+  return `<button class="tile" draggable="true" data-id="${d.id}" style="--edge:${COLOR_HEX[d.marker.cone]}">
+    <span class="tile-top">
+      <span class="tile-mk">${markerSVG(d.marker, tvMode ? 46 : 38)}</span>
+      <span class="tile-id">
+        <span class="dn">${esc(d.no)}</span>
+        <span class="mkname">${esc(markerShort(d.marker))}</span>
+      </span>
+    </span>
+    <span class="tile-meta">
+      <span class="tile-cty">${flagSVG(d.country, 13)}<span class="cc">${esc(d.country)}</span></span>
+      <span class="pk">${d.picks}</span><span>pallet${d.picks === 1 ? '' : 's'}</span>
+      ${d.priority ? '<span class="prio">Priority</span>' : ''}
+      <span class="sp"></span>
+      <span class="held">${held < 1 ? 'just now' : dur(held) + ' here'}</span>
+    </span>
+    <span class="age" data-s="${a.s}"><i style="width:${Math.round(a.pct * 100)}%"></i></span>
+  </button>`;
+}
+
+function renderBoard(){
+  const byStatus = {};
+  for (const s of STATUS_IDS) byStatus[s] = [];
+  for (const d of activeDeliveries()) byStatus[d.status].push(d);
+  for (const s of STATUS_IDS) {
+    byStatus[s].sort((a, b) => (b.priority - a.priority) || (a.statusAt - b.statusAt));
+  }
+  $('#board').innerHTML = STATUSES.map(s => {
+    const list = byStatus[s.id];
+    const pallets = list.reduce((n, d) => n + d.picks, 0);
+    return `<section class="lane" data-lane="${s.id}">
+      <header class="lane-head">
+        <span class="nm">${esc(s.name)}<br><span class="pl">${pallets} pallet${pallets === 1 ? '' : 's'}</span></span>
+        <span class="ct">${list.length}</span>
+      </header>
+      <div class="lane-body">
+        ${list.length ? list.map(tileHTML).join('') : `<p class="lane-empty">${esc(s.hint)}</p>`}
+      </div>
+    </section>`;
+  }).join('');
+  wireBoard();
+}
+
+let dragId = null;
+function wireBoard(){
+  $$('#board .tile').forEach(el => {
+    el.addEventListener('click', () => openDelivery(el.dataset.id));
+    el.addEventListener('dragstart', ev => {
+      if (tvMode) { ev.preventDefault(); return; }
+      dragId = el.dataset.id;
+      el.classList.add('dragging');
+      ev.dataTransfer.effectAllowed = 'move';
+      try { ev.dataTransfer.setData('text/plain', dragId); } catch (e) {}
+    });
+    el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragId = null; });
+  });
+  $$('#board .lane').forEach(lane => {
+    lane.addEventListener('dragover', ev => { if (dragId) { ev.preventDefault(); lane.classList.add('drop'); } });
+    lane.addEventListener('dragleave', () => lane.classList.remove('drop'));
+    lane.addEventListener('drop', ev => {
+      ev.preventDefault();
+      lane.classList.remove('drop');
+      const id = dragId || (ev.dataTransfer && ev.dataTransfer.getData('text/plain'));
+      if (id) doMove(id, lane.dataset.lane);
+      dragId = null;
+    });
+  });
+}
+
+function doMove(id, to){
+  const r = moveDelivery(id, to);
+  if (!r.ok) { if (r.reason) toast(r.reason, 'bad'); return; }
+  renderAll();
+  const el = $(`#board .tile[data-id="${id}"]`);
+  if (el) el.classList.add('flash');
+}
+
+/* ============================================================
+   12. RENDER — detail drawer
+   ============================================================ */
+function openDelivery(id){ openDeliveryId = id; renderDrawer(); }
+function closeDrawer(){ openDeliveryId = null; renderDrawer(); }
+
+function renderDrawer(){
+  const dr = $('#drawer');
+  const d = state.deliveries.find(x => x.id === openDeliveryId);
+  if (!d || tvMode) { dr.classList.remove('open'); dr.innerHTML = ''; return; }
+  const c = COUNTRY_BY_CODE[d.country];
+  const idx = STATUS_IDS.indexOf(d.status);
+  const prev = idx > 0 ? STATUS_IDS[idx - 1] : null;
+  const next = idx >= 0 && idx < STATUS_IDS.length - 1 ? STATUS_IDS[idx + 1] : null;
+  const staged = d.status === 'today' || d.status === 'next_day';
+
+  dr.innerHTML = `
+    <div class="dr-head">
+      ${markerSVG(d.marker, 56)}
+      <div style="flex:1">
+        <div class="dn">${esc(d.no)}</div>
+        <div class="sub">${esc(markerName(d.marker))}</div>
+      </div>
+      <button class="btn btn-quiet" id="drClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="dr-body">
+      <div class="dr-sect">
+        <h3>Delivery</h3>
+        <dl class="facts">
+          <dt>Destination</dt><dd class="mk-inline">${flagSVG(d.country, 13)} ${esc(c ? c.n : d.country)} (${esc(d.country)})</dd>
+          <dt>Pallets</dt><dd>${d.picks}</dd>
+          <dt>Stage</dt><dd>${esc(d.status === LOADED ? 'Loaded, cones not back' : STATUS_BY_ID[d.status].name)}</dd>
+          <dt>In this stage</dt><dd>${esc(dur(minsAgo(d.statusAt)))}</dd>
+          <dt>On the floor</dt><dd>${esc(dur(minsAgo(d.createdAt)))}</dd>
+          ${d.priority ? '<dt>Flag</dt><dd style="color:var(--alert)">Priority</dd>' : ''}
+        </dl>
+      </div>
+      <div class="dr-sect">
+        <h3>Cones held</h3>
+        <dl class="facts">
+          <dt>${esc(COLOR_NAME[d.marker.cone])} cones</dt><dd>${d.picks}</dd>
+          ${d.marker.topper ? `<dt>${esc(COLOR_NAME[d.marker.topperColor])} ${esc(topperWord(d.marker.topper, d.picks))}</dt><dd>${d.picks}</dd>` : ''}
+        </dl>
+      </div>
+      <div class="dr-sect">
+        <h3>Trail</h3>
+        <ul class="trail" style="padding:0;margin:0">
+          ${d.history.slice().reverse().map(h => `<li>
+            <span class="t">${esc(clockTime(h.at))}</span>
+            <span><b>${esc(h.status === LOADED ? 'Loaded' : h.status === CLOSED ? 'Cones returned' : STATUS_BY_ID[h.status].name)}</b>
+            <span class="w">&nbsp;${esc(h.byName)}</span></span>
+          </li>`).join('')}
+        </ul>
+      </div>
+    </div>
+    <div class="dr-foot">
+      ${prev ? `<button class="btn btn-sm" data-to="${prev}">Back to ${esc(STATUS_BY_ID[prev].name.toLowerCase())}</button>` : ''}
+      ${next ? `<button class="btn btn-accent btn-sm" data-to="${next}">Move to ${esc(STATUS_BY_ID[next].name.toLowerCase())}</button>` : ''}
+      ${staged ? `<button class="btn btn-primary btn-sm" data-to="${LOADED}">Loaded on truck</button>` : ''}
+      ${d.status === LOADED ? `<button class="btn btn-accent btn-sm" id="drReturn">Return cones</button>` : ''}
+    </div>`;
+  dr.classList.add('open');
+  $('#drClose').addEventListener('click', closeDrawer);
+  $$('#drawer [data-to]').forEach(b => b.addEventListener('click', () => doMove(d.id, b.dataset.to)));
+  const rb = $('#drReturn');
+  if (rb) rb.addEventListener('click', () => returnModal(d.id));
+}
+
+/* ============================================================
+   13. TOASTS AND MODALS
+   ============================================================ */
+function toast(msg, kind){
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind ? ' ' + kind : '');
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), kind === 'bad' ? 6000 : 3800);
+}
+function openModal(html){
+  const host = $('#modalHost');
+  host.innerHTML = `<div class="scrim">${html}</div>`;
+  const scrim = $('.scrim', host);
+  scrim.addEventListener('mousedown', ev => { if (ev.target === scrim) closeModal(); });
+  const f = scrim.querySelector('input,select,button');
+  if (f) f.focus();
+  return scrim;
+}
+function closeModal(){ $('#modalHost').innerHTML = ''; }
+
+/* ---------- new delivery ---------- */
+function newDeliveryModal(){
+  if (!ROLES[me.role].create) { toast(`${ROLES[me.role].name} cannot register deliveries. Sign in as Business Support.`, 'bad'); return; }
+  const opts = COUNTRIES.map(c => `<option value="${c.c}">${esc(c.n)} (${c.c})</option>`).join('');
+  openModal(`<div class="modal" role="dialog" aria-modal="true" aria-label="Register delivery">
+    <div class="md-head">
+      <div style="flex:1">
+        <h2>Register a delivery</h2>
+        <p>Enter what is on the pick labels you just printed. The marker is chosen for you.</p>
+      </div>
+      <button class="btn btn-quiet" id="ndX" aria-label="Close">&times;</button>
+    </div>
+    <div class="md-body">
+      <div class="field" id="fNo">
+        <label for="ndNo">Delivery number</label>
+        <input id="ndNo" autocomplete="off" placeholder="80412987">
+        <p class="err"></p>
+      </div>
+      <div class="row2">
+        <div class="field" id="fPicks">
+          <label for="ndPicks">Pick labels</label>
+          <input id="ndPicks" type="number" min="1" max="24" value="6">
+          <p class="help">One label per pallet, so this is also how many cones the delivery takes.</p>
+          <p class="err"></p>
+        </div>
+        <div class="field" id="fCty">
+          <label for="ndCty">Destination</label>
+          <select id="ndCty"><option value="">Choose a country</option>${opts}</select>
+          <p class="err"></p>
+        </div>
+      </div>
+      <label class="check field"><input type="checkbox" id="ndPrio"><span>Priority load &mdash; show this one first in every lane</span></label>
+      <div id="ndPreview"></div>
+    </div>
+    <div class="md-foot">
+      <div class="sp"></div>
+      <button class="btn" id="ndCancel">Cancel</button>
+      <button class="btn btn-accent" id="ndGo">Assign marker</button>
+    </div>
+  </div>`);
+
+  const preview = () => {
+    const n = parseInt($('#ndPicks').value, 10);
+    const box = $('#ndPreview');
+    if (!(n >= 1 && n <= 24)) { box.innerHTML = ''; return; }
+    const a = allocate(n);
+    box.innerHTML = a.marker
+      ? `<div class="note"><div class="mk-inline">${markerSVG(a.marker, 46)}
+           <div><b>${esc(markerName(a.marker))}</b><br>
+           <span style="color:var(--ink-2)">Free to use for ${n} pallet${n === 1 ? '' : 's'}. Confirm to reserve it.</span></div></div></div>`
+      : `<div class="note bad"><b>No marker fits.</b><br>${esc(a.reason)}</div>`;
+  };
+  $('#ndPicks').addEventListener('input', preview);
+  preview();
+
+  $('#ndX').addEventListener('click', closeModal);
+  $('#ndCancel').addEventListener('click', closeModal);
+  $('#ndGo').addEventListener('click', submitNewDelivery);
+  $('#ndNo').addEventListener('keydown', ev => { if (ev.key === 'Enter') submitNewDelivery(); });
+}
+
+function setErr(id, msg){
+  const f = $('#' + id);
+  f.classList.toggle('bad', !!msg);
+  $('.err', f).textContent = msg || '';
+  return !msg;
+}
+function submitNewDelivery(){
+  const no = $('#ndNo').value.trim();
+  const picks = parseInt($('#ndPicks').value, 10);
+  const country = $('#ndCty').value;
+  const priority = $('#ndPrio').checked;
+
+  let ok = true;
+  ok = setErr('fNo', !no ? 'Enter the delivery number from the pick label.'
+       : state.deliveries.some(d => d.no === no && d.status !== CLOSED) ? 'That delivery is already on the board.' : '') && ok;
+  ok = setErr('fPicks', !(picks >= 1 && picks <= 24) ? 'Between 1 and 24 pick labels.' : '') && ok;
+  ok = setErr('fCty', !country ? 'Choose the destination country.' : '') && ok;
+  if (!ok) return;
+
+  const freeBefore = freeOf(reservations(), 'cone', (allocate(picks).marker || { cone:'red' }).cone);
+  const r = createDelivery({ no, country, picks, priority });
+  if (!r.ok) { toast(r.reason, 'bad'); return; }
+  renderAll();
+  ticketModal(r.delivery, freeBefore);
+}
+
+/* ---------- assignment ticket: the moment the marker is revealed ---------- */
+function explain(m, picks, freeBefore){
+  if (!m.topper) {
+    return `Plain cones were still free, so this delivery gets a single colour. ${COLOR_NAME[m.cone]} had ${freeBefore} cones free &mdash; the smallest pool that still covers ${picks} pallet${picks === 1 ? '' : 's'}, which keeps the deeper colours open for bigger deliveries.`;
+  }
+  return `All six plain cone colours are already out on the floor, so this delivery gets a two-colour marker: a ${COLOR_NAME[m.topperColor].toLowerCase()} ${TOPPER_NAME[m.topper]} sitting on a ${COLOR_NAME[m.cone].toLowerCase()} cone. No live delivery is using this combination, and ${COLOR_NAME[m.cone].toLowerCase()} is the least-used cone colour right now, so the big piece still carries most of the difference.`;
+}
+
+function ticketModal(d, freeBefore){
+  const c = COUNTRY_BY_CODE[d.country];
+  const m = d.marker;
+  openModal(`<div class="modal wide" role="dialog" aria-modal="true" aria-label="Marker assigned">
+    <div class="md-head">
+      <div style="flex:1"><h2>Marker assigned</h2>
+      <p>Staple this to the pick labels so the VNA operator picks the right cones.</p></div>
+      <button class="btn btn-quiet" id="tkX" aria-label="Close">&times;</button>
+    </div>
+    <div class="md-body">
+      <div class="ticket">
+        <div class="ticket-hz"></div>
+        <div class="ticket-in">
+          <div class="ticket-mk">${markerSVG(m, 150)}</div>
+          <div class="ticket-tx">
+            <div class="lbl">Delivery</div>
+            <div class="dn">${esc(d.no)}</div>
+            <div class="mkname">${esc(markerName(m))}</div>
+            <div class="qty">
+              Take <b>${d.picks} ${esc(COLOR_NAME[m.cone].toLowerCase())} cone${d.picks === 1 ? '' : 's'}</b>${
+                m.topper ? ` and <b>${d.picks} ${esc(COLOR_NAME[m.topperColor].toLowerCase())} ${esc(topperWord(m.topper, d.picks))}</b>` : ''
+              } from the rack.<br>
+              One on top of every pallet. Destination ${esc(c ? c.n : d.country)} (${esc(d.country)}).
+            </div>
+          </div>
+        </div>
+        <div class="ticket-why">${explain(m, d.picks, freeBefore)}</div>
+      </div>
+    </div>
+    <div class="md-foot">
+      <div class="sp"></div>
+      <button class="btn" id="tkPrint">Print</button>
+      <button class="btn btn-primary" id="tkDone">Done</button>
+    </div>
+  </div>`);
+  $('#tkX').addEventListener('click', closeModal);
+  $('#tkDone').addEventListener('click', closeModal);
+  $('#tkPrint').addEventListener('click', () => window.print());
+}
+
+/* ---------- cone return ---------- */
+function returnModal(id){
+  const d = state.deliveries.find(x => x.id === id);
+  if (!d) return;
+  if (!ROLES[me.role].ret) { toast(`${ROLES[me.role].name} cannot confirm cone returns.`, 'bad'); return; }
+  const m = d.marker;
+  openModal(`<div class="modal" role="dialog" aria-modal="true" aria-label="Return cones">
+    <div class="md-head">
+      ${markerSVG(m, 54)}
+      <div style="flex:1"><h2>Return cones from ${esc(d.no)}</h2>
+      <p>Count what came back from the dock. The colour stays blocked until you confirm.</p></div>
+      <button class="btn btn-quiet" id="rtX" aria-label="Close">&times;</button>
+    </div>
+    <div class="md-body">
+      <div class="row2">
+        <div class="field">
+          <label for="rtCone">${esc(COLOR_NAME[m.cone])} cones back</label>
+          <input id="rtCone" type="number" min="0" max="${d.picks}" value="${d.picks}">
+          <p class="help">${d.picks} went out.</p>
+        </div>
+        ${m.topper ? `<div class="field">
+          <label for="rtTop">${esc(COLOR_NAME[m.topperColor])} ${esc(TOPPER_PLURAL[m.topper])} back</label>
+          <input id="rtTop" type="number" min="0" max="${d.picks}" value="${d.picks}">
+          <p class="help">${d.picks} went out.</p>
+        </div>` : ''}
+      </div>
+      <p class="help" style="color:var(--ink-2);line-height:1.5">Anything that does not come back is written off the stock count, so the board stops promising cones that are not on the rack.</p>
+    </div>
+    <div class="md-foot">
+      <div class="sp"></div>
+      <button class="btn" id="rtCancel">Cancel</button>
+      <button class="btn btn-accent" id="rtGo">Release marker</button>
+    </div>
+  </div>`);
+  $('#rtX').addEventListener('click', closeModal);
+  $('#rtCancel').addEventListener('click', closeModal);
+  $('#rtGo').addEventListener('click', () => {
+    const cb = Math.max(0, Math.min(d.picks, parseInt($('#rtCone').value, 10) || 0));
+    const tb = m.topper ? Math.max(0, Math.min(d.picks, parseInt($('#rtTop').value, 10) || 0)) : 0;
+    const r = returnCones(d.id, cb, tb);
+    closeModal();
+    if (!r.ok) { toast(r.reason || 'Could not release the marker.', 'bad'); return; }
+    closeDrawer();
+    renderAll();
+    const missing = r.lostCone + r.lostTop;
+    toast(missing
+      ? `${markerName(m)} released. ${missing} piece${missing === 1 ? '' : 's'} written off stock.`
+      : `${markerName(m)} is back on the rack and free to use.`, missing ? 'bad' : 'good');
+  });
+}
+
+/* ============================================================
+   14. RENDER — cone stock
+   ============================================================ */
+function renderCones(){
+  const res = reservations();
+  const cap = maxPlaceable();
+  const act = activeDeliveries().length;
+
+  const coneTotal = Object.keys(STOCK.cone.counts).reduce((s, c) => s + totalOf('cone', c), 0);
+  const coneUsed = Object.values(res.cone).reduce((s, n) => s + n, 0);
+  const pct = Math.round(coneUsed / coneTotal * 100);
+
+  $('#conePressure').innerHTML = `<div class="note${cap < 10 ? ' bad' : ''}">
+    <b>${coneUsed} of ${coneTotal} traffic cones are out on the floor (${pct}%).</b>
+    The largest new delivery that can still be given a marker is <b>${cap} pallet${cap === 1 ? '' : 's'}</b>, with ${act} deliveries live.
+    ${cap < 10 ? ' Bring cones back from the docks before the next print run, or big deliveries will have nothing to wear.' : ''}
+  </div>`;
+
+  $('#stockGrid').innerHTML = Object.keys(STOCK).map(type => {
+    const s = STOCK[type];
+    const rows = Object.keys(s.counts).map(color => {
+      const tot = totalOf(type, color);
+      const used = (res[type] && res[type][color]) || 0;
+      const free = tot - used;
+      const lost = (state.lost[type] && state.lost[type][color]) || 0;
+      const w = tot ? Math.round(used / tot * 100) : 0;
+      return `<div class="stockrow${free === 0 ? ' out' : ''}">
+        <span>${markerSVG(type === 'cone' ? { cone:color, topper:null } : { cone:null, topper:type, topperColor:color }, 30)}</span>
+        <span>
+          <span class="cname">${esc(COLOR_NAME[color])}${lost ? ` <span class="pill bad">${lost} lost</span>` : ''}</span>
+          <span class="bar"><i style="width:${w}%;background:${COLOR_HEX[color]};opacity:.85"></i></span>
+        </span>
+        <span class="num"><b>${free}</b> free / ${tot}</span>
+      </div>`;
+    }).join('');
+    return `<section class="stockcard">
+      <header><div class="nm">${esc(s.label)} &mdash; ${esc(s.brand)}</div><div class="ds">${esc(s.note)}</div></header>
+      ${rows}
+    </section>`;
+  }).join('');
+}
+
+/* ============================================================
+   15. RENDER — cone returns
+   ============================================================ */
+function renderReturns(){
+  const list = loadedDeliveries().sort((a, b) => a.loadedAt - b.loadedAt);
+  if (!list.length) {
+    $('#returnsWrap').innerHTML = `<div class="empty"><b>Nothing waiting</b>Every cone that left the building is back on the rack.</div>`;
+    return;
+  }
+  $('#returnsWrap').innerHTML = `<table class="tbl">
+    <thead><tr><th>Marker</th><th>Delivery</th><th>To</th><th class="r">Pieces out</th><th>Loaded</th><th></th></tr></thead>
+    <tbody>${list.map(d => {
+      const c = COUNTRY_BY_CODE[d.country];
+      const pieces = d.picks * (d.marker.topper ? 2 : 1);
+      const late = minsAgo(d.loadedAt) > 60;
+      return `<tr>
+        <td><span class="mk-inline">${markerSVG(d.marker, 34)}<span>${esc(markerName(d.marker))}</span></span></td>
+        <td><b>${esc(d.no)}</b></td>
+        <td><span class="mk-inline">${flagSVG(d.country, 13)}<span>${esc(c ? c.n : d.country)}</span></span></td>
+        <td class="r">${pieces}</td>
+        <td>${esc(clockTime(d.loadedAt))} <span class="pill ${late ? 'bad' : ''}">${esc(dur(minsAgo(d.loadedAt)))} ago</span></td>
+        <td class="r"><button class="btn btn-sm btn-accent" data-ret="${d.id}">Return cones</button></td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+  $$('#returnsWrap [data-ret]').forEach(b => b.addEventListener('click', () => returnModal(b.dataset.ret)));
+}
+
+/* ============================================================
+   16. RENDER — activity
+   ============================================================ */
+function renderLog(){
+  if (!state.log.length) {
+    $('#logWrap').innerHTML = `<div class="empty"><b>Nothing logged yet</b>Register a delivery to start the trail.</div>`;
+    return;
+  }
+  $('#logWrap').innerHTML = `<table class="tbl">
+    <thead><tr><th style="width:74px">Time</th><th style="width:150px">Who</th><th>What happened</th></tr></thead>
+    <tbody>${state.log.slice(0, 120).map(e => `<tr>
+      <td>${esc(clockTime(e.at))}</td>
+      <td>${esc(e.byName)}</td>
+      <td>${esc(e.text)}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+/* ============================================================
+   17. LOGIN
+   ============================================================ */
+let pickedUser = null;
+
+function renderLogin(){
+  $('#loginCones').innerHTML = [
+    { cone:'red', topper:null },
+    { cone:'blue', topper:'disc', topperColor:'yellow' },
+    { cone:'green', topper:null },
+    { cone:'purple', topper:'hex', topperColor:'orange' },
+    { cone:'yellow', topper:'disc', topperColor:'black' }
+  ].map(m => markerSVG(m, 74)).join('');
+
+  $('#userGrid').innerHTML = USERS.map(u => `<button class="user-btn" data-u="${u.id}" aria-pressed="false">
+      <span class="nm">${esc(u.name)}</span>
+      <span class="rl">${esc(ROLES[u.role].name)} &middot; PIN ${esc(u.pin)}</span>
+    </button>`).join('');
+
+  $$('#userGrid .user-btn').forEach(b => b.addEventListener('click', () => {
+    pickedUser = USERS.find(u => u.id === b.dataset.u);
+    $$('#userGrid .user-btn').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    $('#pin').value = '';
+    $('#pin').focus();
+    $('#loginErr').textContent = '';
+  }));
+
+  $('#btnLogin').addEventListener('click', tryLogin);
+  $('#pin').addEventListener('keydown', ev => { if (ev.key === 'Enter') tryLogin(); });
+}
+
+function tryLogin(){
+  const err = $('#loginErr');
+  if (!pickedUser) { err.textContent = 'Pick your name first.'; return; }
+  if ($('#pin').value !== pickedUser.pin) { err.textContent = 'That PIN does not match. It is printed under the name.'; return; }
+  me = { id:pickedUser.id, name:pickedUser.name, role:pickedUser.role };
+  try { sessionStorage.setItem('oct.demo.me', me.id); } catch (e) {}
+  $('#login').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  renderAll();
+  toast(`Signed in as ${me.name}, ${ROLES[me.role].name}.`, 'good');
+}
+
+function signOut(){
+  me = null; openDeliveryId = null;
+  try { sessionStorage.removeItem('oct.demo.me'); } catch (e) {}
+  if (tvMode) setTv(false);
+  $('#app').classList.add('hidden');
+  $('#login').classList.remove('hidden');
+  $('#pin').value = '';
+  $('#loginErr').textContent = '';
+}
+
+/* ============================================================
+   18. NAVIGATION AND TV MODE
+   ============================================================ */
+function setView(v){
+  view = v;
+  $$('#nav button').forEach(b => b.setAttribute('aria-current', String(b.dataset.view === v)));
+  const map = { board:'#viewBoard', cones:'#viewCones', returns:'#viewReturns', log:'#viewLog' };
+  Object.keys(map).forEach(k => $(map[k]).classList.toggle('hidden', k !== v));
+}
+
+let tvTimer = null;
+function setTv(on){
+  tvMode = on;
+  document.documentElement.setAttribute('data-mode', on ? 'tv' : 'work');
+  $('#tvclock').classList.toggle('hidden', !on);
+  $('#btnTv').textContent = on ? 'Exit TV mode' : 'TV mode';
+  if (on) {
+    setView('board');
+    closeDrawer();
+    if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+    tickClock();
+    tvTimer = setInterval(tickClock, 10000);
+  } else {
+    clearInterval(tvTimer); tvTimer = null;
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  }
+  renderAll();
+}
+function tickClock(){
+  const d = new Date();
+  $('#tvclock').textContent = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+/* ============================================================
+   19. BOOT
+   ============================================================ */
+function boot(){
+  const fromParent = !!(window.opener && !window.opener.closed);
+  state = load();
+  if (!state || !state.seeded) {
+    /* A second screen waits for the board it was opened from. */
+    if (fromParent) state = blankState(); else seed();
+  }
+
+  renderLogin();
+  initSync();
+  if (fromParent) broadcast({ t:'need' });
+
+  $('#nav').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-view]');
+    if (b) setView(b.dataset.view);
+  });
+  $('#btnNew').addEventListener('click', newDeliveryModal);
+  $('#btnScreen').addEventListener('click', openSecondScreen);
+  $('#btnTv').addEventListener('click', () => setTv(!tvMode));
+  $('#btnOut').addEventListener('click', signOut);
+  $('#btnReset').addEventListener('click', () => {
+    if (!confirm('Reset the demo? Every delivery goes back to the starting shift and all cones return to the rack.')) return;
+    seed(); renderAll(); setView('board');
+    toast('Demo data reset. The board is back to the starting shift.', 'good');
+  });
+
+  document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Escape') return;
+    if ($('#modalHost').innerHTML) { closeModal(); return; }
+    if (tvMode) { setTv(false); return; }
+    if (openDeliveryId) closeDrawer();
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && tvMode) setTv(false);
+  });
+
+  /* Keep the ageing bars and "x min here" honest without a server. */
+  setInterval(() => { if (me && !$('#modalHost').innerHTML) { renderKpis(); renderBoard(); } }, 30000);
+
+  /* Same browser, second tab: stay signed in so the cross-tab demo is quick. */
+  let remembered = null;
+  try { remembered = sessionStorage.getItem('oct.demo.me'); } catch (e) {}
+  const u = remembered && USERS.find(x => x.id === remembered);
+  if (u) { pickedUser = u; $('#pin').value = u.pin; tryLogin(); }
+}
+
+boot();
+</script>
+</body>
+</html>
