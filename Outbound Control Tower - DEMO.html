@@ -184,6 +184,18 @@ main{flex:1;min-height:0;position:relative}
 .kpi.warn b{color:var(--alert)}
 .kpi.warn span{color:var(--alert)}
 
+/* ---------- board filter (Europe / Export) ---------- */
+.board-filter{
+  display:flex;gap:2px;padding:7px 14px;background:var(--board-2);
+  border-bottom:1px solid var(--rule);flex:0 0 auto;
+}
+.board-filter button{
+  background:transparent;border:1px solid transparent;color:var(--ink-2);
+  padding:5px 12px;border-radius:2px;font-size:.86em;
+}
+.board-filter button:hover{background:var(--tile);border-color:var(--rule)}
+.board-filter button[aria-current="true"]{background:var(--tile);border-color:var(--ink-3);color:var(--ink);font-weight:600}
+
 /* ============================================================
    BOARD
    ============================================================ */
@@ -244,6 +256,7 @@ main{flex:1;min-height:0;position:relative}
 .tile-meta .held{white-space:nowrap}
 .tile-meta .pk{font-weight:600;color:var(--ink)}
 .tile-meta .sp{flex:1}
+.tile-op{display:block;margin-top:5px;color:var(--ink-3);font-size:.78em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .age{height:3px;margin:8px -10px 0 -10px;background:var(--rule-soft);position:relative;overflow:hidden}
 .age i{position:absolute;inset:0 auto 0 0;background:var(--ok);display:block}
 .age[data-s="warn"] i{background:var(--accent)}
@@ -502,6 +515,11 @@ html[data-mode="tv"] .kpi b{font-size:26px}
     <!-- ---------- BOARD ---------- -->
     <section class="view" id="viewBoard">
       <div class="kpis" id="kpis"></div>
+      <div class="board-filter" id="boardFilter">
+        <button data-f="all" aria-current="true">All destinations</button>
+        <button data-f="EU">Europe</button>
+        <button data-f="EXPORT">Export</button>
+      </div>
       <div class="board-scroll">
         <div class="board" id="board"></div>
       </div>
@@ -588,6 +606,12 @@ function topperWord(t, n){ return n === 1 ? TOPPER_NAME[t] : TOPPER_PLURAL[t]; }
    Used only as a tie-breaker, never as a hard block. */
 const CONFUSABLE = [['red','orange'],['red','pink'],['orange','yellow'],['blue','purple'],['white','yellow'],['red','green']];
 
+/* 1–6 pallets commonly combine a cone colour with a topper colour/shape.
+   7 pallets or more always gets a single colour, single shape — easier to
+   read at a glance across a big stack. See candidates() in the allocation
+   engine. */
+const COMBO_MAX_PICKS = 7;
+
 const STATUSES = [
   { id:'allocated',    name:'Allocated',         hint:'Pick labels printed',      sla:25 },
   { id:'picking',      name:'Picking',           hint:'VNA working the racks',    sla:70 },
@@ -620,77 +644,114 @@ const USERS = [
 ];
 
 /* ============================================================
-   2. COUNTRIES AND FLAGS
+   2. DESTINATIONS AND FLAGS
    Windows does not render flag emoji, so every flag is drawn as SVG.
+   `region` drives the Europe / Export lane filter. Hungary ships to two
+   separate yards, so it gets two destination rows sharing one flag.
    ============================================================ */
-const COUNTRIES = [
-  { c:'DE', n:'Germany',        f:['h3','#000000','#DD0000','#FFCE00'] },
-  { c:'FR', n:'France',         f:['v3','#002395','#FFFFFF','#ED2939'] },
-  { c:'IT', n:'Italy',          f:['v3','#009246','#FFFFFF','#CE2B37'] },
-  { c:'NL', n:'Netherlands',    f:['h3','#AE1C28','#FFFFFF','#21468B'] },
-  { c:'BE', n:'Belgium',        f:['v3','#000000','#FAE042','#ED2939'] },
-  { c:'ES', n:'Spain',          f:['es'] },
-  { c:'GB', n:'United Kingdom', f:['gb'] },
-  { c:'IE', n:'Ireland',        f:['v3','#169B62','#FFFFFF','#FF883E'] },
-  { c:'PT', n:'Portugal',       f:['pt'] },
-  { c:'PL', n:'Poland',         f:['h2','#FFFFFF','#DC143C'] },
-  { c:'CZ', n:'Czechia',        f:['cz'] },
-  { c:'AT', n:'Austria',        f:['h3','#ED2939','#FFFFFF','#ED2939'] },
-  { c:'HU', n:'Hungary',        f:['h3','#CE2939','#FFFFFF','#477050'] },
-  { c:'RO', n:'Romania',        f:['v3','#002B7F','#FCD116','#CE1126'] },
-  { c:'SE', n:'Sweden',         f:['nordic','#006AA7','#FECC00'] },
-  { c:'FI', n:'Finland',        f:['nordic','#FFFFFF','#003580'] },
-  { c:'DK', n:'Denmark',        f:['nordic','#C60C30','#FFFFFF'] },
-  { c:'NO', n:'Norway',         f:['no'] },
-  { c:'CH', n:'Switzerland',    f:['ch'] },
-  { c:'TR', n:'Turkey',         f:['tr'] },
-  { c:'IL', n:'Israel',         f:['il'] }
+const DESTINATIONS = [
+  { id:'DE',      flag:'DE', n:'Germany',              region:'EU' },
+  { id:'NL',      flag:'NL', n:'Netherlands',          region:'EU' },
+  { id:'CZ',      flag:'CZ', n:'Czech Republic',       region:'EU' },
+  { id:'HU-ULLO', flag:'HU', n:'Hungary – Üllő',       region:'EU' },
+  { id:'HU-KOM',  flag:'HU', n:'Hungary – Komárom',    region:'EU' },
+  { id:'US',      flag:'US', n:'USA',                  region:'EXPORT' },
+  { id:'VN',      flag:'VN', n:'Vietnam',              region:'EXPORT' },
+  { id:'MX',      flag:'MX', n:'Mexico',               region:'EXPORT' },
+  { id:'TW',      flag:'TW', n:'Taiwan',               region:'EXPORT' },
+  { id:'CN',      flag:'CN', n:'China',                region:'EXPORT' },
+  { id:'TH',      flag:'TH', n:'Thailand',             region:'EXPORT' },
+  { id:'IL',      flag:'IL', n:'Israel',               region:'EXPORT' },
+  { id:'SG',      flag:'SG', n:'Singapore',            region:'EXPORT' },
+  { id:'KR',      flag:'KR', n:'South Korea',          region:'EXPORT' },
+  { id:'PH',      flag:'PH', n:'Philippines',          region:'EXPORT' },
+  { id:'MY',      flag:'MY', n:'Malaysia',             region:'EXPORT' }
 ];
-const COUNTRY_BY_CODE = Object.fromEntries(COUNTRIES.map(x => [x.c, x]));
+const DEST_BY_ID = Object.fromEntries(DESTINATIONS.map(x => [x.id, x]));
 
-function flagSVG(code, h){
-  const c = COUNTRY_BY_CODE[code];
+/* One hand-drawn flag per destination country. Simplified shapes (no fine
+   emblem detail — stars, sun rays, trigrams) so they stay legible at badge
+   size; the grey code badge below still covers any code with no entry. */
+const FLAG_ART = {
+  DE:['h3','#000000','#DD0000','#FFCE00'],
+  NL:['h3','#AE1C28','#FFFFFF','#21468B'],
+  HU:['h3','#CE2939','#FFFFFF','#477050'],
+  MX:['v3','#006847','#FFFFFF','#CE1126'],
+  CZ:['cz'],
+  IL:['il'],
+  US:['us'],
+  VN:['vn'],
+  TW:['tw'],
+  CN:['cn'],
+  TH:['th'],
+  SG:['sg'],
+  KR:['kr'],
+  PH:['ph'],
+  MY:['my']
+};
+
+function flagSVG(code, h, label){
+  const art = FLAG_ART[code];
   const w = Math.round(h * 1.5);
-  const open = `<svg class="flag" width="${w}" height="${h}" viewBox="0 0 24 16" role="img" aria-label="${c ? esc(c.n) : esc(code)}">`;
+  const open = `<svg class="flag" width="${w}" height="${h}" viewBox="0 0 24 16" role="img" aria-label="${esc(label || code)}">`;
   const frame = `<rect x="0" y="0" width="24" height="16" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="1"/></svg>`;
-  if (!c) return `${open}<rect width="24" height="16" fill="#B9C0C8"/><text x="12" y="11.5" font-size="8" font-family="sans-serif" text-anchor="middle" fill="#2A323A">${esc(code)}</text>${frame}`;
-  const f = c.f, k = f[0];
+  if (!art) return `${open}<rect width="24" height="16" fill="#B9C0C8"/><text x="12" y="11.5" font-size="8" font-family="sans-serif" text-anchor="middle" fill="#2A323A">${esc(code)}</text>${frame}`;
+  const k = art[0];
   let g = '';
   if (k === 'h3') {
-    g = `<rect width="24" height="5.34" fill="${f[1]}"/><rect y="5.34" width="24" height="5.33" fill="${f[2]}"/><rect y="10.67" width="24" height="5.33" fill="${f[3]}"/>`;
+    g = `<rect width="24" height="5.34" fill="${art[1]}"/><rect y="5.34" width="24" height="5.33" fill="${art[2]}"/><rect y="10.67" width="24" height="5.33" fill="${art[3]}"/>`;
   } else if (k === 'v3') {
-    g = `<rect width="8" height="16" fill="${f[1]}"/><rect x="8" width="8" height="16" fill="${f[2]}"/><rect x="16" width="8" height="16" fill="${f[3]}"/>`;
-  } else if (k === 'h2') {
-    g = `<rect width="24" height="8" fill="${f[1]}"/><rect y="8" width="24" height="8" fill="${f[2]}"/>`;
-  } else if (k === 'nordic') {
-    g = `<rect width="24" height="16" fill="${f[1]}"/><rect x="7" width="4" height="16" fill="${f[2]}"/><rect y="6" width="24" height="4" fill="${f[2]}"/>`;
-  } else if (k === 'no') {
-    g = `<rect width="24" height="16" fill="#BA0C2F"/><rect x="6.5" width="5" height="16" fill="#fff"/><rect y="5.5" width="24" height="5" fill="#fff"/>`
-      + `<rect x="8" width="2" height="16" fill="#00205B"/><rect y="7" width="24" height="2" fill="#00205B"/>`;
-  } else if (k === 'es') {
-    g = `<rect width="24" height="16" fill="#AA151B"/><rect y="4" width="24" height="8" fill="#F1BF00"/>`;
-  } else if (k === 'ch') {
-    g = `<rect width="24" height="16" fill="#D52B1E"/><rect x="10.5" y="3.5" width="3" height="9" fill="#fff"/><rect x="7.5" y="6.5" width="9" height="3" fill="#fff"/>`;
+    g = `<rect width="8" height="16" fill="${art[1]}"/><rect x="8" width="8" height="16" fill="${art[2]}"/><rect x="16" width="8" height="16" fill="${art[3]}"/>`;
   } else if (k === 'cz') {
     g = `<rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/>`;
-  } else if (k === 'pt') {
-    g = `<rect width="24" height="16" fill="#DA291C"/><rect width="9.6" height="16" fill="#046A38"/><circle cx="9.6" cy="8" r="3.3" fill="#FFE900" stroke="#046A38" stroke-width=".7"/>`;
-  } else if (k === 'tr') {
-    g = `<rect width="24" height="16" fill="#E30A17"/><circle cx="9.5" cy="8" r="4" fill="#fff"/><circle cx="11" cy="8" r="3.2" fill="#E30A17"/>`
-      + `<path d="M15.1 8 L17.9 6.9 L16.4 9.3 L16.4 6.6 L17.9 9.1 Z" fill="#fff"/>`;
   } else if (k === 'il') {
     g = `<rect width="24" height="16" fill="#fff"/><rect y="2" width="24" height="2.2" fill="#0038B8"/><rect y="11.8" width="24" height="2.2" fill="#0038B8"/>`
       + `<path d="M12 5 L14.6 9.6 L9.4 9.6 Z" fill="none" stroke="#0038B8" stroke-width="1"/>`
       + `<path d="M12 11 L9.4 6.4 L14.6 6.4 Z" fill="none" stroke="#0038B8" stroke-width="1"/>`;
-  } else if (k === 'gb') {
-    g = `<rect width="24" height="16" fill="#012169"/>`
-      + `<path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.4"/>`
-      + `<path d="M0 0 L24 16 M24 0 L0 16" stroke="#C8102E" stroke-width="1.7"/>`
-      + `<path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5.4"/>`
-      + `<path d="M12 0 V16 M0 8 H24" stroke="#C8102E" stroke-width="3.2"/>`;
+  } else if (k === 'us') {
+    const sh = 16 / 7;
+    g = `<rect width="24" height="16" fill="#B22234"/>`;
+    for (let i = 1; i < 7; i += 2) g += `<rect y="${(sh * i).toFixed(2)}" width="24" height="${sh.toFixed(2)}" fill="#fff"/>`;
+    g += `<rect width="10" height="${(sh * 4).toFixed(2)}" fill="#3C3B6E"/>`;
+  } else if (k === 'vn') {
+    g = `<rect width="24" height="16" fill="#DA251D"/>`
+      + `<path d="M12 4 L13.06 7.35 L16.6 7.35 L13.77 9.4 L14.83 12.75 L12 10.7 L9.17 12.75 L10.23 9.4 L7.4 7.35 L10.94 7.35 Z" fill="#FFCD00"/>`;
+  } else if (k === 'tw') {
+    g = `<rect width="24" height="16" fill="#FE0000"/><rect width="12" height="8.8" fill="#000095"/>`
+      + `<circle cx="6" cy="4.4" r="2.5" fill="#fff"/><circle cx="6" cy="4.4" r="1.4" fill="#000095"/>`;
+  } else if (k === 'cn') {
+    g = `<rect width="24" height="16" fill="#DE2910"/>`
+      + `<path d="M5 3 L5.88 5.76 L8.8 5.76 L6.46 7.48 L7.34 10.24 L5 8.52 L2.66 10.24 L3.54 7.48 L1.2 5.76 L4.12 5.76 Z" fill="#FFDE00"/>`;
+  } else if (k === 'th') {
+    const s = 16 / 6;
+    g = `<rect width="24" height="${s.toFixed(2)}" fill="#A51931"/>`
+      + `<rect y="${s.toFixed(2)}" width="24" height="${s.toFixed(2)}" fill="#fff"/>`
+      + `<rect y="${(s * 2).toFixed(2)}" width="24" height="${(s * 2).toFixed(2)}" fill="#2D2A4A"/>`
+      + `<rect y="${(s * 4).toFixed(2)}" width="24" height="${s.toFixed(2)}" fill="#fff"/>`
+      + `<rect y="${(s * 5).toFixed(2)}" width="24" height="${s.toFixed(2)}" fill="#A51931"/>`;
+  } else if (k === 'sg') {
+    g = `<rect width="24" height="8" fill="#EF3340"/><rect y="8" width="24" height="8" fill="#fff"/>`
+      + `<circle cx="5" cy="4" r="2.6" fill="#fff"/><circle cx="5.9" cy="4" r="2.2" fill="#EF3340"/>`;
+  } else if (k === 'kr') {
+    g = `<rect width="24" height="16" fill="#fff"/>`
+      + `<path d="M8.1 8 A3.9 3.9 0 0 1 15.9 8 Z" fill="#C60C30"/>`
+      + `<path d="M8.1 8 A3.9 3.9 0 0 0 15.9 8 Z" fill="#003478"/>`;
+  } else if (k === 'ph') {
+    g = `<rect width="24" height="8" fill="#0038A8"/><rect y="8" width="24" height="8" fill="#CE1126"/>`
+      + `<path d="M0 0 L9 8 L0 16 Z" fill="#fff"/>`
+      + `<circle cx="3.4" cy="8" r="1.3" fill="#FCD116"/>`;
+  } else if (k === 'my') {
+    const sh = 16 / 7;
+    g = `<rect width="24" height="16" fill="#CC0001"/>`;
+    for (let i = 1; i < 7; i += 2) g += `<rect y="${(sh * i).toFixed(2)}" width="24" height="${sh.toFixed(2)}" fill="#fff"/>`;
+    g += `<rect width="12" height="${(sh * 4).toFixed(2)}" fill="#010066"/>`
+      + `<circle cx="5.2" cy="4.4" r="2.6" fill="#FFCC00"/><circle cx="6.1" cy="4.4" r="2.2" fill="#010066"/>`
+      + `<path d="M8.2 4.4 L9.4 3.9 L8.9 4.4 L9.4 4.9 Z" fill="#FFCC00"/>`;
   }
   return open + g + frame;
 }
+/* A destination's flag code — Hungary's two yards both draw HU's art. */
+function destFlag(dest){ return dest.flag || dest.id; }
 
 /* ============================================================
    3. MARKER DRAWING
@@ -947,6 +1008,11 @@ function candidates(picks, res, used){
   }
   tiers.push(plain);
 
+  /* 7 pallets or more always ships under a single colour and shape — a
+     two-piece marker is too easy to misread across a big stack. Combos
+     stay available only for the small deliveries where they're common. */
+  if (picks >= COMBO_MAX_PICKS) return tiers;
+
   /* One combination tier holding both topper shapes. Shape is a difference
      an operator can read at distance, so a round saucer and a hexagon are
      not interchangeable — the two stocks are drained evenly instead. */
@@ -1000,7 +1066,8 @@ function whyNothing(picks, res, used){
   const fits = coneColors.filter(c => freeOf(res, 'cone', c) >= picks);
   if (!fits.length) {
     const best = Math.max(...coneColors.map(c => freeOf(res, 'cone', c)));
-    return `No colour has ${picks} free cones. The deepest pool has ${best}. Split the delivery or bring cones back from the docks.`;
+    const rule = picks >= COMBO_MAX_PICKS ? ` Deliveries of ${COMBO_MAX_PICKS}+ pallets cannot take a combo marker, so a topper cannot cover the gap.` : '';
+    return `No colour has ${picks} free cones. The deepest pool has ${best}.${rule} Split the delivery or bring cones back from the docks.`;
   }
   return `Every marker that covers ${picks} pallets is already on the floor. Return cones from a loaded delivery to free one.`;
 }
@@ -1076,28 +1143,34 @@ function returnCones(id, coneBack, topperBack){
 /* ============================================================
    9. SEED — a believable shift, built through the real engine
    ============================================================ */
+/* Only 6 plain cone colours exist, and a plain marker is exclusive to one
+   live delivery at a time (see activate() in the allocation engine) — so
+   at most 6 deliveries can hold a single-colour marker at once. Every
+   delivery here that needs 7+ pallets (COMBO_MAX_PICKS, no combo allowed)
+   is listed first so it claims one of those 6 slots before a smaller
+   delivery can take it; the rest fall back to combo markers as usual. */
 const SEED = [
-  ['80412771','DE', 8,  'today',        118, false],
-  ['80412783','IT', 5,  'today',        62,  true ],
-  ['80412790','FR', 12, 'strap',        41,  false],
-  ['80412802','GB', 3,  'packing',      74,  false],
-  ['80412815','PL', 7,  'packing',      28,  false],
-  ['80412821','ES', 2,  'packing',      12,  false],
-  ['80412838','SE', 9,  'pick_dropped', 44,  false],
-  ['80412844','CZ', 4,  'pick_dropped', 9,   false],
-  ['80412857','NL', 14, 'picking',      52,  false],
-  ['80412863','TR', 6,  'picking',      21,  true ],
-  ['80412870','IL', 1,  'picking',      6,   false],
-  ['80412886','HU', 5,  'allocated',    16,  false],
-  ['80412899','RO', 10, 'allocated',    7,   false],
-  ['80412904','AT', 3,  'allocated',    2,   false],
-  ['80412917','FI', 6,  'next_day',     190, false],
-  ['80412923','DK', 4,  'next_day',     165, false],
-  ['80412936','NO', 11, 'next_day',     140, false],
-  ['80412942','CH', 2,  'next_day',     96,  false],
-  ['80412955','BE', 7,  'today',        33,  false],
-  ['80412968','IE', 5,  LOADED,         58,  false],
-  ['80412974','PT', 9,  LOADED,         26,  false]
+  ['80412771','DE',      8,  'today',        118, false],
+  ['80412790','VN',      12, 'strap',        41,  false],
+  ['80412815','TH',      7,  'packing',      28,  false],
+  ['80412838','SG',      9,  'pick_dropped', 44,  false],
+  ['80412857','NL',      14, 'picking',      52,  false],
+  ['80412899','MX',      10, 'allocated',    7,   false],
+  ['80412783','US',      5,  'today',        62,  true ],
+  ['80412802','TW',      3,  'packing',      74,  false],
+  ['80412821','CN',      2,  'packing',      12,  false],
+  ['80412844','CZ',      4,  'pick_dropped', 9,   false],
+  ['80412863','KR',      6,  'picking',      21,  true ],
+  ['80412870','IL',      1,  'picking',      6,   false],
+  ['80412886','HU-ULLO', 5,  'allocated',    16,  false],
+  ['80412904','HU-KOM',  3,  'allocated',    2,   false],
+  ['80412917','PH',      6,  'next_day',     190, false],
+  ['80412923','US',      4,  'next_day',     165, false],
+  ['80412936','VN',      6,  'next_day',     140, false],
+  ['80412942','DE',      2,  'next_day',     96,  false],
+  ['80412955','TH',      5,  'today',        33,  false],
+  ['80412968','NL',      5,  LOADED,         58,  false],
+  ['80412974','TW',      6,  LOADED,         26,  false]
 ];
 
 function seed(){
@@ -1195,10 +1268,19 @@ function ageState(d){
   return { pct, s: pct >= 1 ? 'late' : pct > .66 ? 'warn' : 'ok', mins:m };
 }
 
+/* Who is currently working this delivery — the last person to move it into
+   its current status. In picking that's the VNA operator on the racks; in
+   packing, whoever is counting it out. The team leader reads this off the
+   tile without opening the drawer. */
+function currentOperator(d){
+  return d.history.length ? d.history[d.history.length - 1].byName : '';
+}
+
 function tileHTML(d){
   const a = ageState(d);
-  const c = COUNTRY_BY_CODE[d.country];
+  const c = DEST_BY_ID[d.country];
   const held = minsAgo(d.statusAt);
+  const op = currentOperator(d);
   return `<button class="tile" draggable="true" data-id="${d.id}" style="--edge:${COLOR_HEX[d.marker.cone]}">
     <span class="tile-top">
       <span class="tile-mk">${markerSVG(d.marker, tvMode ? 46 : 38)}</span>
@@ -1208,23 +1290,29 @@ function tileHTML(d){
       </span>
     </span>
     <span class="tile-meta">
-      <span class="tile-cty">${flagSVG(d.country, 13)}<span class="cc">${esc(d.country)}</span></span>
+      <span class="tile-cty">${flagSVG(destFlag(c), 13, c.n)}<span class="cc">${esc(destFlag(c))}</span></span>
       <span class="pk">${d.picks}</span><span>pallet${d.picks === 1 ? '' : 's'}</span>
       ${d.priority ? '<span class="prio">Priority</span>' : ''}
       <span class="sp"></span>
       <span class="held">${held < 1 ? 'just now' : dur(held) + ' here'}</span>
     </span>
+    ${op ? `<span class="tile-op">${esc(op)}</span>` : ''}
     <span class="age" data-s="${a.s}"><i style="width:${Math.round(a.pct * 100)}%"></i></span>
   </button>`;
 }
 
+let boardFilter = 'all';   /* 'all' | 'EU' | 'EXPORT' */
 function renderBoard(){
   const byStatus = {};
   for (const s of STATUS_IDS) byStatus[s] = [];
-  for (const d of activeDeliveries()) byStatus[d.status].push(d);
+  for (const d of activeDeliveries()) {
+    if (boardFilter !== 'all' && DEST_BY_ID[d.country].region !== boardFilter) continue;
+    byStatus[d.status].push(d);
+  }
   for (const s of STATUS_IDS) {
     byStatus[s].sort((a, b) => (b.priority - a.priority) || (a.statusAt - b.statusAt));
   }
+  $$('#boardFilter [data-f]').forEach(b => b.setAttribute('aria-current', String(b.dataset.f === boardFilter)));
   $('#board').innerHTML = STATUSES.map(s => {
     const list = byStatus[s.id];
     const pallets = list.reduce((n, d) => n + d.picks, 0);
@@ -1285,7 +1373,7 @@ function renderDrawer(){
   const dr = $('#drawer');
   const d = state.deliveries.find(x => x.id === openDeliveryId);
   if (!d || tvMode) { dr.classList.remove('open'); dr.innerHTML = ''; return; }
-  const c = COUNTRY_BY_CODE[d.country];
+  const c = DEST_BY_ID[d.country];
   const idx = STATUS_IDS.indexOf(d.status);
   const prev = idx > 0 ? STATUS_IDS[idx - 1] : null;
   const next = idx >= 0 && idx < STATUS_IDS.length - 1 ? STATUS_IDS[idx + 1] : null;
@@ -1304,7 +1392,8 @@ function renderDrawer(){
       <div class="dr-sect">
         <h3>Delivery</h3>
         <dl class="facts">
-          <dt>Destination</dt><dd class="mk-inline">${flagSVG(d.country, 13)} ${esc(c ? c.n : d.country)} (${esc(d.country)})</dd>
+          <dt>Destination</dt><dd class="mk-inline">${flagSVG(destFlag(c), 13, c.n)} ${esc(c.n)} (${esc(destFlag(c))})</dd>
+          <dt>Region</dt><dd>${c.region === 'EU' ? 'Europe' : 'Export'}</dd>
           <dt>Pallets</dt><dd>${d.picks}</dd>
           <dt>Stage</dt><dd>${esc(d.status === LOADED ? 'Loaded, cones not back' : STATUS_BY_ID[d.status].name)}</dd>
           <dt>In this stage</dt><dd>${esc(dur(minsAgo(d.statusAt)))}</dd>
@@ -1367,7 +1456,9 @@ function closeModal(){ $('#modalHost').innerHTML = ''; }
 /* ---------- new delivery ---------- */
 function newDeliveryModal(){
   if (!ROLES[me.role].create) { toast(`${ROLES[me.role].name} cannot register deliveries. Sign in as Business Support.`, 'bad'); return; }
-  const opts = COUNTRIES.map(c => `<option value="${c.c}">${esc(c.n)} (${c.c})</option>`).join('');
+  const optsFor = region => DESTINATIONS.filter(d => d.region === region)
+    .map(d => `<option value="${d.id}">${esc(d.n)} (${esc(destFlag(d))})</option>`).join('');
+  const opts = `<optgroup label="Europe">${optsFor('EU')}</optgroup><optgroup label="Export">${optsFor('EXPORT')}</optgroup>`;
   openModal(`<div class="modal" role="dialog" aria-modal="true" aria-label="Register delivery">
     <div class="md-head">
       <div style="flex:1">
@@ -1386,7 +1477,7 @@ function newDeliveryModal(){
         <div class="field" id="fPicks">
           <label for="ndPicks">Pick labels</label>
           <input id="ndPicks" type="number" min="1" max="24" value="6">
-          <p class="help">One label per pallet, so this is also how many cones the delivery takes.</p>
+          <p class="help">One label per pallet, so this is also how many cones the delivery takes. ${COMBO_MAX_PICKS}+ pallets always gets a single colour and shape.</p>
           <p class="err"></p>
         </div>
         <div class="field" id="fCty">
@@ -1454,13 +1545,16 @@ function submitNewDelivery(){
 /* ---------- assignment ticket: the moment the marker is revealed ---------- */
 function explain(m, picks, freeBefore){
   if (!m.topper) {
-    return `Plain cones were still free, so this delivery gets a single colour. ${COLOR_NAME[m.cone]} had ${freeBefore} cones free &mdash; the smallest pool that still covers ${picks} pallet${picks === 1 ? '' : 's'}, which keeps the deeper colours open for bigger deliveries.`;
+    const why = picks >= COMBO_MAX_PICKS
+      ? `${picks} pallets is ${COMBO_MAX_PICKS} or more, so it always ships under a single colour — too easy to misread a combo across a stack that size`
+      : `plain cones were still free`;
+    return `${why[0].toUpperCase()}${why.slice(1)}, so this delivery gets a single colour. ${COLOR_NAME[m.cone]} had ${freeBefore} cones free &mdash; the smallest pool that still covers ${picks} pallet${picks === 1 ? '' : 's'}, which keeps the deeper colours open for bigger deliveries.`;
   }
   return `All six plain cone colours are already out on the floor, so this delivery gets a two-colour marker: a ${COLOR_NAME[m.topperColor].toLowerCase()} ${TOPPER_NAME[m.topper]} sitting on a ${COLOR_NAME[m.cone].toLowerCase()} cone. No live delivery is using this combination, and ${COLOR_NAME[m.cone].toLowerCase()} is the least-used cone colour right now, so the big piece still carries most of the difference.`;
 }
 
 function ticketModal(d, freeBefore){
-  const c = COUNTRY_BY_CODE[d.country];
+  const c = DEST_BY_ID[d.country];
   const m = d.marker;
   openModal(`<div class="modal wide" role="dialog" aria-modal="true" aria-label="Marker assigned">
     <div class="md-head">
@@ -1481,7 +1575,7 @@ function ticketModal(d, freeBefore){
               Take <b>${d.picks} ${esc(COLOR_NAME[m.cone].toLowerCase())} cone${d.picks === 1 ? '' : 's'}</b>${
                 m.topper ? ` and <b>${d.picks} ${esc(COLOR_NAME[m.topperColor].toLowerCase())} ${esc(topperWord(m.topper, d.picks))}</b>` : ''
               } from the rack.<br>
-              One on top of every pallet. Destination ${esc(c ? c.n : d.country)} (${esc(d.country)}).
+              One on top of every pallet. Destination ${esc(c.n)} (${esc(destFlag(c))}).
             </div>
           </div>
         </div>
@@ -1604,13 +1698,13 @@ function renderReturns(){
   $('#returnsWrap').innerHTML = `<table class="tbl">
     <thead><tr><th>Marker</th><th>Delivery</th><th>To</th><th class="r">Pieces out</th><th>Loaded</th><th></th></tr></thead>
     <tbody>${list.map(d => {
-      const c = COUNTRY_BY_CODE[d.country];
+      const c = DEST_BY_ID[d.country];
       const pieces = d.picks * (d.marker.topper ? 2 : 1);
       const late = minsAgo(d.loadedAt) > 60;
       return `<tr>
         <td><span class="mk-inline">${markerSVG(d.marker, 34)}<span>${esc(markerName(d.marker))}</span></span></td>
         <td><b>${esc(d.no)}</b></td>
-        <td><span class="mk-inline">${flagSVG(d.country, 13)}<span>${esc(c ? c.n : d.country)}</span></span></td>
+        <td><span class="mk-inline">${flagSVG(destFlag(c), 13, c.n)}<span>${esc(c.n)}</span></span></td>
         <td class="r">${pieces}</td>
         <td>${esc(clockTime(d.loadedAt))} <span class="pill ${late ? 'bad' : ''}">${esc(dur(minsAgo(d.loadedAt)))} ago</span></td>
         <td class="r"><button class="btn btn-sm btn-accent" data-ret="${d.id}">Return cones</button></td>
@@ -1740,6 +1834,10 @@ function boot(){
   $('#nav').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-view]');
     if (b) setView(b.dataset.view);
+  });
+  $('#boardFilter').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-f]');
+    if (b) { boardFilter = b.dataset.f; renderBoard(); }
   });
   $('#btnNew').addEventListener('click', newDeliveryModal);
   $('#btnScreen').addEventListener('click', openSecondScreen);

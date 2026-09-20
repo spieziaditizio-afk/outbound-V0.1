@@ -6,10 +6,10 @@
     "semantic_hash": "dc5e9ed4d058a73db04ff03899ad54c9"
   },
   "Outbound Control Tower - DEMO.html": {
-    "mtime": 1789927839.0924432,
-    "seen": 1789927874.0057256,
-    "ast_hash": "bdd3fe34415a6c2400af09e7fc855ef5",
-    "semantic_hash": ""
+    "mtime": 1789841126.6276834,
+    "seen": 1789908136.2581482,
+    "ast_hash": "ef47f65cd76561d81038f9012a48b57b",
+    "semantic_hash": "ef47f65cd76561d81038f9012a48b57b"
   },
   "EPT.jpg": {
     "mtime": 1789328248.062715,
@@ -82,11 +82,5 @@
     "seen": 1789908136.2581482,
     "ast_hash": "c5064f57c49fdc830099b6ca028b4e8d",
     "semantic_hash": "c5064f57c49fdc830099b6ca028b4e8d"
-  },
-  "CLAUDE.md": {
-    "mtime": 1789925194.7943332,
-    "seen": 1789926834.686323,
-    "ast_hash": "8fc0f87a2c182bb2c3553892631a8bde",
-    "semantic_hash": ""
   }
 }
