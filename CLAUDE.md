@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A single self-contained HTML file — `Outbound Control Tower - DEMO.html` — simulating a warehouse outbound delivery board for the Special Operations Area, Sevenum. No build step, no package manager, no server, no dependencies. All CSS and JS live inline in that one file. The image files in the repo root (`EPT*.jpg`, `VNA*.jpg/webp`, `cawila*.png`, `precision*.png/webp`, `Mooffz.png`, `pick label.jpg`) are reference photos for the physical cone markers — the app does not load them at runtime.
+A single self-contained HTML file — `Outbound Digital Board.html` — simulating a warehouse outbound delivery board for the Special Operations Area, Sevenum. No build step, no package manager, no server, no dependencies. All CSS and JS live inline in that one file. The image files in the repo root (`EPT*.jpg`, `VNA*.jpg/webp`, `cawila*.png`, `precision*.png/webp`, `Mooffz.png`, `pick label.jpg`) are reference photos for the physical cone markers — the app does not load them at runtime.
 
 ## Commands
 
 There is no build, lint, or test tooling — this is a static file.
 
-- Open `Outbound Control Tower - DEMO.html` directly in a browser (double-click or `file://`) to test changes.
+- Open `Outbound Digital Board.html` directly in a browser (double-click or `file://`) to test changes.
 - Use the in-app "Reset demo data" button (Activity view) to replay `SEED` and return to a clean starting shift after breaking state.
 - Use the "Second screen" button to open a second window and exercise the cross-tab sync path.
 
@@ -24,9 +24,9 @@ Everything lives in one `<script>` block, organized into 19 numbered sections (s
 - **5. State** — one global `state` object (`{deliveries, log, lost, seeded}`) persisted to `localStorage` under `oct.demo.state.v1`; `save()` writes it and broadcasts it.
   - **Live sync** (same section): three fallback transports keep multiple open windows in sync — `BroadcastChannel` (same origin), a `window.opener`/child-window `postMessage` mesh (`relays()`/`send()`/`handle()`), and the `storage` event as last resort. Every message carries the full state, so no transport depends on `localStorage` actually being writable. Read `initSync()`, `handle()`, and `broadcast()` together before touching sync behavior — it's the trickiest part of the file.
 - **7. Allocation engine** (`allocate`/`candidates`) — assigns a marker to a new delivery. Priority order: never reuse a marker a live delivery already holds; prefer a plain cone over a cone+topper combo; best-fit the smallest color pool that still covers the pallet count (keeps deep pools free for bigger deliveries); when a combo is needed, avoid `CONFUSABLE` color pairs and spread topper usage evenly across the `disc`/`hex` shapes.
-- **8. Mutations** — `createDelivery`, `moveDelivery` (gated by `canMove`/`ROLES.move`), `returnCones` (releases a marker back to stock, writes off whatever didn't come back). Every mutation calls `logEvent` then `save()`.
+- **8. Mutations** — `createDelivery`, `moveDelivery` (gated by `canMove`/`ROLES.move`), `returnCones` (releases a marker back to stock, writes off whatever didn't come back), `consolidatePallets` (Packing-only — see pick labels vs. pallets below). Every mutation calls `logEvent` then `save()`.
 - **9. Seed** — `SEED` + `seed()` build a believable starting shift by replaying real `createDelivery`/status-transition calls rather than hand-crafting state, so seeded data stays consistent with what the allocation engine and history log would actually produce.
-- **10–16. Render** — `renderAll()` fans out to one render function per view (board, drawer, cone stock, returns, activity log). Render functions are pure functions of `state` + `me` (the signed-in user) and rebuild `innerHTML` from scratch — no framework, no diffing.
+- **10–16. Render** — `renderAll()` fans out to one render function per view (board, drawer, cone stock, returns, activity log). Render functions are pure functions of `state` + `me` (the signed-in user) and rebuild `innerHTML` from scratch — no framework, no diffing. The board also applies client-only view filters (`searchQuery`, `countryFilter`, `operatorFilter`, `lateOnly`, plus the region toggle `boardFilter`) before grouping deliveries into lanes — these live in module variables, never in `state`, so they reset on reload and never sync across tabs.
 - **17–19. Login, navigation/TV mode, boot** — PIN-based demo login (`USERS`); `data-mode="tv"` on `<html>` drives a wall-monitor CSS variant; `@media print` limits printing to the assignment ticket only.
 
 ### Delivery status pipeline
@@ -38,6 +38,8 @@ allocated → picking → pick_dropped → packing → strap → next_day|today 
 ```
 
 A delivery's `marker` is reserved from `STOCK` the moment it's created via `createDelivery`, and isn't released until `returnCones` closes it. `reservations()`/`freeOf()` compute live stock pressure from every non-`closed` delivery, including ones already `loaded`, not just what's visible on the board.
+
+**Pick labels vs. pallets:** `d.pickLabels` is frozen at creation (what Business Support printed) and never changes. `d.picks` starts equal to it and is the number every stock function actually reads as the live cone/pallet count. Through Allocated → Pick dropped the two stay equal — nothing to consolidate yet. Only in Packing can `consolidatePallets` shrink `d.picks` (boxes from two or more pick labels fit closed on one pallet — a single pick label's boxes never split across pallets) and immediately frees the excess cones back to stock. `countUnit()`/`countLabel()` display `d.picks` as "pick label(s)" before Packing and "pallet(s)" from Packing on, purely by status.
 
 ## graphify
 
