@@ -1,0 +1,510 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Outbound Control Tower</title>
+<style>
+:root{
+  --ink:#1F2933; --ink-2:#55616E; --ink-3:#8593A1;
+  --board:#EEF0F2; --board-2:#E3E6EA; --tile:#FFFFFF; --rule:#C9CFD6; --rule-soft:#DEE3E8;
+  --chrome:#1F2933; --chrome-2:#151A20; --chrome-ink:#E4E9EE; --chrome-dim:#8B98A5; --chrome-rule:#323C46;
+  --accent:#FFB300; --accent-ink:#4A3200; --alert:#D7263D; --ok:#2E9E4F;
+  --display:"Oswald",system-ui,sans-serif;
+  --body:"Inter",system-ui,-apple-system,sans-serif;
+  background:var(--board);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--board); color:var(--ink);
+  font-family:var(--body); font-size:16px; line-height:1.55;
+  -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums;
+}
+h1,h2,h3,p,ul,ol{margin:0}
+img,svg{max-width:100%}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:20px}
+.eyebrow{
+  font-family:var(--display); font-weight:600; font-size:13px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:14px; display:flex; align-items:center; gap:10px;
+}
+.eyebrow::before{content:"";width:22px;height:2px;background:var(--accent);display:block}
+h2.act-title{
+  font-family:var(--display); font-weight:600; font-size:clamp(28px,4.4vw,44px);
+  line-height:1.08; letter-spacing:-.01em; text-wrap:balance; max-width:16ch; margin-bottom:20px;
+}
+.lede{font-size:18px; line-height:1.6; color:var(--ink-2); max-width:62ch}
+.act-dark .lede{color:#B7C0C9}
+.act-dark{color:var(--chrome-ink)}
+
+/* ---------- hazard divider (lifted straight from the app's own login-brand motif) ---------- */
+.hazard{
+  height:11px;
+  background:repeating-linear-gradient(135deg,var(--accent) 0 16px,var(--chrome-2) 16px 32px);
+}
+
+/* ---------- hero ---------- */
+.hero{
+  background:var(--chrome-2); color:var(--chrome-ink); position:relative; overflow:hidden;
+  padding:76px 0 64px;
+}
+.hero::before{
+  content:""; position:absolute; inset:0; opacity:.5;
+  background-image:
+    linear-gradient(var(--chrome-rule) 1px,transparent 1px),
+    linear-gradient(90deg,var(--chrome-rule) 1px,transparent 1px);
+  background-size:38px 38px; mask-image:radial-gradient(ellipse at 30% 20%,#000 0%,transparent 70%);
+}
+.hero .wrap{position:relative}
+.hero .kicker{
+  font-family:var(--display); font-weight:500; font-size:13px; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--chrome-dim); margin-bottom:22px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+}
+.hero .kicker b{color:var(--accent); font-weight:600}
+.hero h1{
+  font-family:var(--display); font-weight:700; font-size:clamp(40px,7vw,78px); line-height:.98;
+  letter-spacing:-.015em; text-wrap:balance; max-width:15ch;
+}
+.hero h1 em{font-style:normal; color:var(--accent)}
+.hero .sub{margin-top:22px; font-size:19px; color:#B7C0C9; max-width:56ch; line-height:1.6}
+.hero .audience{
+  margin-top:34px; display:flex; gap:10px; flex-wrap:wrap;
+}
+.audience span{
+  border:1px solid var(--chrome-rule); border-radius:2px; padding:6px 12px; font-size:13px;
+  color:var(--chrome-dim); font-family:var(--display); letter-spacing:.04em;
+}
+.scrolldown{
+  margin-top:56px; display:flex; align-items:center; gap:10px; color:var(--chrome-dim); font-size:13px;
+  font-family:var(--display); letter-spacing:.08em; text-transform:uppercase;
+}
+.scrolldown i{width:1px; height:34px; background:linear-gradient(var(--accent),transparent); display:block; animation:down 1.8s ease-in-out infinite}
+@keyframes down{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(6px);opacity:1}}
+
+/* ---------- generic act ---------- */
+.act{padding:88px 0}
+.act-dark{background:var(--chrome)}
+.act-light{background:var(--board)}
+.act-board{background:var(--board); padding:88px 0 0}
+
+/* ---------- act 1: the physical board today ---------- */
+.today-grid{margin-top:44px; display:grid; grid-template-columns:1.05fr .95fr; gap:44px; align-items:start}
+.today-copy p + p{margin-top:16px}
+.today-copy{color:#C3CBD3; font-size:16px; line-height:1.7}
+.today-copy b{color:var(--chrome-ink); font-weight:600}
+.card-mock{
+  background:#232B34; border:1px solid var(--chrome-rule); border-radius:2px; padding:0; overflow:hidden;
+}
+.card-mock header{
+  padding:10px 14px; background:var(--chrome-2); border-bottom:1px solid var(--chrome-rule);
+  font-family:var(--display); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--chrome-dim);
+}
+.mag-card{
+  margin:18px; border:2px solid var(--alert); border-radius:2px; background:#2A333D; padding:16px 18px;
+  position:relative;
+}
+.mag-card::before{
+  content:""; position:absolute; left:-2px; top:-2px; bottom:-2px; width:6px; background:var(--alert);
+}
+.mag-card .dn{font-family:var(--display); font-weight:600; font-size:24px; color:#fff; letter-spacing:.01em}
+.mag-card .pk{margin-top:6px; color:var(--chrome-dim); font-size:14px}
+.mag-card .pins{position:absolute; top:8px; right:10px; display:flex; gap:5px}
+.mag-card .pins i{width:6px; height:6px; border-radius:50%; background:var(--chrome-rule)}
+.pain{margin:18px; padding-top:2px}
+.pain h4{
+  font-family:var(--display); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--chrome-dim);
+  margin-bottom:10px;
+}
+.pain ul{list-style:none; padding:0; display:flex; flex-direction:column; gap:8px}
+.pain li{font-size:14px; color:#C3CBD3; padding-left:16px; position:relative; line-height:1.5}
+.pain li::before{content:"—"; position:absolute; left:0; color:var(--alert)}
+
+/* ---------- act 2: the sticky board ---------- */
+.board-sticky-wrap{position:sticky; top:16px; z-index:2; padding-bottom:26px}
+.board-mini{
+  background:var(--board-2); border:1px solid var(--rule-soft); border-radius:2px;
+  display:flex; gap:2px; padding:10px; overflow-x:auto; position:relative; min-height:164px;
+}
+.lane-mini{
+  flex:1 0 118px; min-width:118px; min-height:144px; background:var(--tile); border:1px solid var(--rule-soft); border-radius:2px;
+  padding:9px 10px; position:relative; transition:border-color .25s,box-shadow .25s;
+}
+.lane-mini.active{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset}
+.lane-mini .hd{min-height:32px}
+.lane-mini .nm{font-family:var(--display); font-weight:600; font-size:12.5px; line-height:1.2; color:var(--ink-2)}
+.lane-mini.active .nm{color:var(--ink)}
+.lane-mini .ix{
+  font-family:var(--display); font-size:11px; color:var(--ink-3); margin-bottom:3px; letter-spacing:.06em;
+}
+.travel-card{
+  position:absolute; top:58px; width:98px; background:var(--tile); border:1px solid var(--rule);
+  border-left:5px solid var(--alert); border-radius:2px; padding:7px 8px 6px; box-shadow:0 8px 18px -6px rgba(31,41,51,.28);
+  transition:left .55s cubic-bezier(.65,0,.35,1); left:10px;
+}
+.travel-card .dn{font-family:var(--display); font-weight:700; font-size:13px; letter-spacing:.01em}
+.travel-card .mm{font-size:10px; color:var(--ink-2); margin-top:2px}
+.travel-card .who{font-size:9.5px; color:var(--ink-3); margin-top:5px; border-top:1px solid var(--rule-soft); padding-top:4px}
+
+.board-steps{padding-top:12px}
+.board-step{min-height:78vh; display:flex; align-items:center; padding:34px 0}
+.board-step .num{
+  font-family:var(--display); font-size:13px; color:var(--accent-ink); background:var(--accent);
+  display:inline-flex; padding:3px 9px; border-radius:2px; font-weight:700; letter-spacing:.04em; margin-bottom:16px;
+}
+.board-step h3{
+  font-family:var(--display); font-weight:600; font-size:clamp(24px,3.4vw,32px); line-height:1.14; max-width:18ch; margin-bottom:14px;
+}
+.board-step p{font-size:16.5px; color:var(--ink-2); max-width:52ch; line-height:1.65}
+.board-step p b{color:var(--ink); font-weight:600}
+.board-step .same{
+  display:inline-block; margin-top:16px; font-size:12.5px; font-family:var(--display); letter-spacing:.05em;
+  text-transform:uppercase; color:var(--ok); border:1px solid var(--ok); border-radius:2px; padding:4px 9px;
+}
+.board-step .plus{
+  display:inline-block; margin-top:16px; margin-left:8px; font-size:12.5px; font-family:var(--display); letter-spacing:.05em;
+  text-transform:uppercase; color:#9A6C00; border:1px solid var(--accent); border-radius:2px; padding:4px 9px; background:rgba(255,179,0,.12);
+}
+
+/* ---------- act 3: value grid ---------- */
+.value-grid{margin-top:44px; display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--chrome-rule); border:1px solid var(--chrome-rule)}
+.value-card{background:var(--chrome); padding:26px 22px; min-height:168px; display:flex; flex-direction:column; gap:10px}
+.value-card .ic{width:30px; height:30px; color:var(--accent)}
+.value-card h4{font-family:var(--display); font-weight:600; font-size:17px; color:#fff; line-height:1.25}
+.value-card p{font-size:14px; color:#AEB8C1; line-height:1.55}
+
+/* ---------- act 4: IT requirements ---------- */
+.req-lede{margin-top:44px}
+.req-groups{margin-top:38px; display:flex; flex-direction:column; gap:0}
+.req-group{display:grid; grid-template-columns:250px 1fr; gap:28px; padding:26px 0; border-top:1px solid var(--rule)}
+.req-group:last-child{border-bottom:1px solid var(--rule)}
+.req-group .gtitle{font-family:var(--display); font-weight:600; font-size:19px; line-height:1.3}
+.req-group .gtitle span{display:block; font-family:var(--body); font-weight:400; font-size:13px; color:var(--ink-3); margin-top:6px}
+.req-list{list-style:none; padding:0; display:flex; flex-direction:column; gap:14px}
+.req-list li{display:flex; gap:12px; align-items:flex-start; font-size:15px; line-height:1.55}
+.req-list .chk{
+  flex:0 0 auto; width:20px; height:20px; border-radius:50%; border:1.5px solid var(--rule); margin-top:1.5px;
+  display:flex; align-items:center; justify-content:center;
+}
+.req-list .chk::after{content:""; width:6px; height:6px; border-radius:50%; background:var(--rule-soft)}
+.req-list b{font-weight:600}
+.req-list .today{color:var(--ink-3); font-size:13.5px; display:block; margin-top:3px}
+
+/* ---------- act 5: pilot + cta ---------- */
+.pilot{margin-top:40px; display:grid; grid-template-columns:repeat(2,1fr); gap:22px}
+.pilot li{list-style:none; border:1px solid var(--chrome-rule); border-radius:2px; padding:20px}
+.pilot .wk{font-family:var(--display); color:var(--accent); font-weight:700; font-size:13px; letter-spacing:.08em; text-transform:uppercase}
+.pilot p{margin-top:10px; font-size:14.5px; color:#C3CBD3; line-height:1.55}
+.pilot h5{font-family:var(--display); font-size:17px; color:#fff; margin-top:4px; font-weight:600}
+
+.closing{padding:96px 0 80px}
+.closing .wrap{text-align:left}
+.closing h2{
+  font-family:var(--display); font-weight:700; font-size:clamp(30px,4.8vw,46px); line-height:1.06; max-width:18ch;
+}
+.closing .foot-row{margin-top:34px; display:flex; gap:14px; flex-wrap:wrap; align-items:center}
+.pill-btn{
+  font-family:var(--display); font-weight:600; letter-spacing:.03em; font-size:14px; text-transform:uppercase;
+  background:var(--accent); color:var(--accent-ink); border:none; border-radius:2px; padding:13px 22px; display:inline-block;
+}
+.pill-btn.ghost{background:transparent; color:var(--chrome-ink); border:1px solid var(--chrome-rule)}
+.closing .filenote{margin-top:26px; font-size:13.5px; color:var(--chrome-dim); max-width:58ch; line-height:1.6}
+.closing .filenote code{background:var(--chrome-2); border:1px solid var(--chrome-rule); border-radius:2px; padding:2px 6px; font-size:12.5px; color:#DDE3E8}
+
+@media (max-width:760px){
+  .today-grid{grid-template-columns:1fr}
+  .value-grid{grid-template-columns:1fr 1fr}
+  .req-group{grid-template-columns:1fr}
+  .pilot{grid-template-columns:1fr}
+}
+@media (max-width:520px){
+  .value-grid{grid-template-columns:1fr}
+  .lane-mini{flex-basis:96px; min-width:96px}
+}
+@media (prefers-reduced-motion:reduce){
+  .scrolldown i{animation:none}
+  .travel-card{transition:none}
+}
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+
+<div class="page">
+
+  <!-- ============ HERO ============ -->
+  <header class="hero">
+    <div class="wrap">
+      <div class="kicker">Special Operations Area <b>·</b> Sevenum &mdash; proposal for <b>Supervisor</b> &amp; <b>IT</b></div>
+      <h1>From the magnetic whiteboard to a live <em>Control&nbsp;Tower</em></h1>
+      <p class="sub">A walkthrough of how delivery tracking works today, what we built to put it on screen, and what we need from IT to run it on the warehouse floor — not just in a demo.</p>
+      <div class="audience">
+        <span>7 statuses · same as today</span>
+        <span>16 destinations with flags</span>
+        <span>Cone marker allocation engine</span>
+      </div>
+      <div class="scrolldown"><i></i>Scroll to follow the walkthrough</div>
+    </div>
+  </header>
+
+  <div class="hazard"></div>
+
+  <!-- ============ ACT 1 — THE PROCESS TODAY ============ -->
+  <section class="act act-dark">
+    <div class="wrap">
+      <div class="eyebrow">01 &mdash; How it works today</div>
+      <h2 class="act-title">One magnetic card per delivery, moved by hand through every status</h2>
+      <p class="lede">This is the process right now, before touching a single screen.</p>
+
+      <div class="today-grid">
+        <div class="today-copy">
+          <p><b>Business Support</b> prints the pick labels for each delivery: the locations and piece quantities that VNA operators need to pick from the racks. A delivery can carry one or several pick labels.</p>
+          <p>Along with the pick labels, they place a <b>magnetic card</b> on the whiteboard with the delivery number and pick count. That card starts in the <b>Allocated</b> column.</p>
+          <p>From there, every actor who completes their part of the process <b>moves the card</b> to the next column: Picking → Pick dropped → Packing → Strap and sealing → Pick up next day / Pick up today.</p>
+          <p>The <b>Team Leader</b> keeps the board under constant observation — it's the only real-time source of status that exists today.</p>
+        </div>
+
+        <div class="card-mock">
+          <header>Physical whiteboard — 7 columns</header>
+          <div class="mag-card">
+            <div class="pins"><i></i><i></i></div>
+            <div class="dn">80412771</div>
+            <div class="pk">8 pick labels · Allocated</div>
+          </div>
+          <div class="pain">
+            <h4>What the board can't give you</h4>
+            <ul>
+              <li>No one sees the status without standing in front of it</li>
+              <li>No record of who moved which card, or when</li>
+              <li>A stuck delivery doesn't raise a flag — someone has to notice it by eye</li>
+              <li>Each delivery's marker (cone/color) is decided separately, and never documented</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="hazard"></div>
+
+  <!-- ============ ACT 2 — THE DEMO (STICKY BOARD) ============ -->
+  <section class="act act-board" id="act2">
+    <div class="wrap">
+      <div class="eyebrow">02 &mdash; The demo: Outbound Control Tower</div>
+      <h2 class="act-title">The same 7 columns. The same card. Now live.</h2>
+      <p class="lede">Nothing about the process changes — the pipeline is identical. What changes is that the card now lives on screen, moves by dragging it, and never loses its trail. Scroll: the card below travels the same board.</p>
+    </div>
+
+    <div class="wrap">
+      <div class="board-sticky-wrap">
+        <div class="board-mini" id="miniBoard">
+          <!-- lanes injected by JS from LANES array so labels stay in one place -->
+        </div>
+      </div>
+
+      <div class="board-steps">
+        <div class="board-step" data-lane="0">
+          <div>
+            <span class="num">80412771 · 8 picks</span>
+            <h3>Allocated</h3>
+            <p>The delivery is registered once — number and picks — and the <b>allocation engine</b> picks the marker automatically: a plain cone, or a cone + disc/hex when a combo is needed.</p>
+            <span class="same">Same as today: 1 card per delivery</span>
+            <span class="plus">New: the marker is calculated, not eyeballed</span>
+          </div>
+        </div>
+        <div class="board-step" data-lane="1">
+          <div>
+            <span class="num">80412857 · 14 picks</span>
+            <h3>Picking</h3>
+            <p>The card shows who's working it: the <b>VNA operator</b> who moved it into Picking is identified on the card itself, not just in their head.</p>
+            <span class="same">Same as today: the VNA operator moves the card</span>
+            <span class="plus">New: you can see which operator is picking each order</span>
+          </div>
+        </div>
+        <div class="board-step" data-lane="2">
+          <div>
+            <span class="num">80412838 · 9 picks</span>
+            <h3>Pick dropped</h3>
+            <p>Waiting at the aisle head. The <b>age bar</b> under the card turns yellow, then red, if it sits longer than expected in a status — without anyone having to go look.</p>
+            <span class="plus">New: visual alert for time-in-status (SLA)</span>
+          </div>
+        </div>
+        <div class="board-step" data-lane="3">
+          <div>
+            <span class="num">80412802 · 3 picks</span>
+            <h3>Packing</h3>
+            <p>You can see who's doing the packing for the delivery — the same information that today only exists if someone asks in person now stays on the card and in the history.</p>
+            <span class="same">Same as today: packing counts against the labels</span>
+            <span class="plus">New: visible from any screen, not just standing there</span>
+          </div>
+        </div>
+        <div class="board-step" data-lane="4">
+          <div>
+            <span class="num">80412790 · 12 picks</span>
+            <h3>Strap and sealing</h3>
+            <p>Last step before it's ready to go out. The system already knows which country it's headed to — <b>16 destinations</b>, each with its own flag, split between Europe and Export.</p>
+          </div>
+        </div>
+        <div class="board-step" data-lane="5">
+          <div>
+            <span class="num">80412917 · 6 picks</span>
+            <h3>Pick up next day / Pick up today</h3>
+            <p>Priority deliveries stand out on their own. The whole board can be filtered between Europe and Export — something impossible to do by eye on a physical board with 20 cards.</p>
+            <span class="plus">New: Europe / Export filter across the whole board</span>
+          </div>
+        </div>
+        <div class="board-step" data-lane="6">
+          <div>
+            <span class="num">80412968 · 5 picks</span>
+            <h3>Loaded → close-out</h3>
+            <p>Once the truck is loaded, the marker stays "on loan" until the cone comes back to the rack. The system remembers on its own, and frees up the color for the next delivery once the return is confirmed.</p>
+            <span class="plus">New: real-time cone stock, nothing slips out of view</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="hazard"></div>
+
+  <!-- ============ ACT 3 — BEYOND THE WHITEBOARD ============ -->
+  <section class="act act-dark">
+    <div class="wrap">
+      <div class="eyebrow">03 &mdash; Beyond replicating the whiteboard</div>
+      <h2 class="act-title">Six things the physical board could never do</h2>
+      <p class="lede">It's not just digitizing the card — the system solves problems that today aren't even attempted.</p>
+    </div>
+
+    <div class="wrap">
+      <div class="value-grid">
+        <div class="value-card">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 3v18M4 7.5l8 4.5 8-4.5"/></svg>
+          <h4>Marker allocation engine</h4>
+          <p>A plain cone for 1&ndash;6 picks, combining color and shape; a single fixed color and shape from 7 picks up — the same rule applied by hand today, now calculated on its own.</p>
+        </div>
+        <div class="value-card">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12h18M12 3a15 15 0 010 18 15 15 0 010-18z"/></svg>
+          <h4>16 destinations, Europe vs. Export</h4>
+          <p>USA, Vietnam, Mexico, Taiwan, China, Thailand, Israel, Germany, the Netherlands, Czech Republic, Hungary (Üllő and Komárom), Singapore, South Korea, the Philippines, Malaysia — each with its own flag and filterable in one click.</p>
+        </div>
+        <div class="value-card">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          <h4>Time-in-status alerts</h4>
+          <p>Every card carries a bar that warns when it's spent longer than expected in a status — the team leader no longer depends on looking at the board at the right moment.</p>
+        </div>
+        <div class="value-card">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4v16h16M8 15l3-4 3 3 4-6"/></svg>
+          <h4>Full activity history</h4>
+          <p>Every status change is logged with who did it and at what time, forever — something a magnetic card can never keep.</p>
+        </div>
+        <div class="value-card">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="14" rx="1"/><path d="M8 21h8M12 18v3"/></svg>
+          <h4>Live sync + TV mode</h4>
+          <p>Several open screens update each other automatically, and the wall view (TV mode) shows the full board with no controls, for the team leader's constant observation.</p>
+        </div>
+        <div class="value-card">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 20V10M10 20V4M16 20v-7M4 10l6-6 6 3 4-3"/></svg>
+          <h4>Live cone stock</h4>
+          <p>How many cones, discs and hexes are free and in use in each color, at every moment — no counting by hand on the rack.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="hazard"></div>
+
+  <!-- ============ ACT 5 — NEXT STEPS + CTA ============ -->
+  <section class="act act-dark closing">
+    <div class="wrap">
+      <div class="eyebrow">04 &mdash; Next steps</div>
+      <h2>We propose starting small: one shift, one area, measure, and only then scale.</h2>
+
+      <ul class="pilot">
+        <li>
+          <div class="wk">Step 1</div>
+          <h5>Small pilot</h5>
+          <p>One shift or one aisle, running alongside the physical board, without pulling it yet.</p>
+        </li>
+        <li>
+          <div class="wk">Step 2</div>
+          <h5>Measure adoption</h5>
+          <p>Does the team leader check the screen instead of walking to the board? Do fewer cards go missing?</p>
+        </li>
+      </ul>
+
+      <div class="foot-row">
+        <span class="pill-btn">See the live demo</span>
+        <span class="pill-btn ghost">Schedule with IT</span>
+      </div>
+      <p class="filenote">The working demo is at <code>Outbound Control Tower - DEMO.html</code> — it opens in any browser, nothing to install, with sample data already loaded.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var LANES = [
+    {nm:"Allocated", ix:"01"},
+    {nm:"Picking", ix:"02"},
+    {nm:"Pick dropped", ix:"03"},
+    {nm:"Packing", ix:"04"},
+    {nm:"Strap & seal", ix:"05"},
+    {nm:"Next day / Today", ix:"06"},
+    {nm:"Loaded", ix:"07"}
+  ];
+  var CARDS = [
+    {dn:"80412771", mm:"8 picks · Orange cone", who:"M. de Vries"},
+    {dn:"80412857", mm:"14 picks · Red cone", who:"J. Kowalski"},
+    {dn:"80412838", mm:"9 picks · Green cone", who:"J. Kowalski"},
+    {dn:"80412802", mm:"3 picks · Red + black disc", who:"J. Kowalski"},
+    {dn:"80412790", mm:"12 picks · Purple cone", who:"J. Kowalski"},
+    {dn:"80412917", mm:"6 picks · Green + white disc", who:"J. Kowalski"},
+    {dn:"80412968", mm:"5 picks · Red + yellow disc", who:"S. Yilmaz"}
+  ];
+
+  var board = document.getElementById("miniBoard");
+  if (!board) return;
+
+  var laneEls = LANES.map(function(l){
+    var el = document.createElement("div");
+    el.className = "lane-mini";
+    el.innerHTML = '<div class="hd"><div class="ix">' + l.ix + '</div><div class="nm">' + l.nm + '</div></div>';
+    board.appendChild(el);
+    return el;
+  });
+
+  var card = document.createElement("div");
+  card.className = "travel-card";
+  card.innerHTML = '<div class="dn"></div><div class="mm"></div><div class="who"></div>';
+  board.appendChild(card);
+
+  function paintCard(i){
+    var c = CARDS[i];
+    card.querySelector(".dn").textContent = c.dn;
+    card.querySelector(".mm").textContent = c.mm;
+    card.querySelector(".who").textContent = c.who;
+  }
+
+  function setActive(i){
+    laneEls.forEach(function(el, idx){ el.classList.toggle("active", idx === i); });
+    var target = laneEls[i];
+    // position the card inside its lane, accounting for the board's own scroll offset
+    card.style.left = (target.offsetLeft + 10) + "px";
+    paintCard(i);
+  }
+
+  setActive(0);
+  window.addEventListener("resize", function(){
+    var current = laneEls.findIndex(function(el){ return el.classList.contains("active"); });
+    setActive(current < 0 ? 0 : current);
+  });
+
+  var steps = document.querySelectorAll(".board-step");
+  if ("IntersectionObserver" in window && steps.length) {
+    var obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (entry.isIntersecting) setActive(parseInt(entry.target.dataset.lane, 10));
+      });
+    }, { threshold: 0.55 });
+    steps.forEach(function(s){ obs.observe(s); });
+  }
+})();
+</script>
+
+</body></html>

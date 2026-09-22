@@ -263,6 +263,32 @@ main{flex:1;min-height:0;position:relative}
 .age[data-s="late"] i{background:var(--alert)}
 .tile-meta .prio{color:var(--alert);font-weight:600}
 
+/* ---------- lane tools (staging lanes only) ---------- */
+.lane-tools{padding:6px 11px;border-bottom:1px solid var(--rule-soft)}
+.lane-tools .btn{width:100%}
+
+/* ---------- truck / load grouping ---------- */
+.load-card{border:1px solid var(--rule);border-radius:2px;background:var(--board-2)}
+.load-head{display:flex;flex-wrap:wrap;align-items:center;gap:3px 10px;padding:8px 10px;border-bottom:1px solid var(--rule-soft)}
+.load-id{font-weight:600}
+.load-truck{color:var(--ink-2);font-size:.86em}
+.load-ct{color:var(--ink-3);font-size:.8em;flex:1}
+.load-actions{display:flex;gap:6px}
+.load-body{padding:8px;display:flex;flex-direction:column;gap:8px}
+.load-body .tile{border-radius:2px}
+.load-select-bar{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px dashed var(--ink-3);border-radius:2px;font-size:.86em;color:var(--ink-2)}
+.tile.tile-select{cursor:pointer;padding-left:32px}
+.tile-chk{
+  position:absolute;left:10px;top:11px;width:16px;height:16px;
+  border:1px solid var(--ink-3);border-radius:2px;background:var(--tile);
+}
+.tile.tile-select[aria-pressed="true"]{border-color:var(--accent)}
+.tile.tile-select[aria-pressed="true"] .tile-chk{background:var(--accent);border-color:var(--accent)}
+.tile.tile-select[aria-pressed="true"] .tile-chk::after{
+  content:'';position:absolute;left:4px;top:1px;width:5px;height:9px;
+  border:solid var(--accent-ink);border-width:0 2px 2px 0;transform:rotate(40deg);
+}
+
 /* ---------- marker drawing ---------- */
 .mk{display:block}
 .mk-inline{display:inline-flex;align-items:center;gap:8px}
@@ -839,7 +865,7 @@ let openDeliveryId = null;
 let tvMode = false;
 
 function blankState(){
-  return { v:1, seq:0, deliveries:[], log:[], lost:{ cone:{}, disc:{}, hex:{} }, seeded:false };
+  return { v:1, seq:0, deliveries:[], loads:[], log:[], lost:{ cone:{}, disc:{}, hex:{} }, seeded:false };
 }
 function save(){
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* private mode */ }
@@ -848,7 +874,7 @@ function save(){
 function load(){
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) return s; }
+    if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) { if (!s.loads) s.loads = []; return s; } }
   } catch (e) { /* ignore */ }
   return null;
 }
@@ -1140,6 +1166,57 @@ function returnCones(id, coneBack, topperBack){
   return { ok:true, lostCone, lostTop };
 }
 
+/* ---------- truck / load grouping (staging lanes only) ----------
+   A Load ID is a truck's manifest, not a separate truck registry: one
+   truck carrying two loads is just two Load records with the same plate
+   typed twice. Only the team leader may create or edit these — narrower
+   than the existing create/ret ROLES flags, so it's checked by role id
+   directly rather than adding a new ROLES permission for one action. */
+function canManageLoads(){ return !!me && me.role === 'team_leader'; }
+
+function createLoad({ loadId, truckPlate, eta, deliveryIds }){
+  if (!canManageLoads()) return { ok:false, reason:'Only the Team Leader can assign a truck.' };
+  const ids = Array.from(new Set(deliveryIds || []));
+  if (!ids.length) return { ok:false, reason:'Select at least one delivery.' };
+  const ds = ids.map(id => state.deliveries.find(x => x.id === id));
+  if (ds.some(d => !d)) return { ok:false, reason:'One of the selected deliveries no longer exists.' };
+  if (ds.some(d => d.status !== 'next_day' && d.status !== 'today')) {
+    return { ok:false, reason:'Only deliveries staged for pickup (next day / today) can be assigned to a truck.' };
+  }
+  if (ds.some(d => d.loadRef)) return { ok:false, reason:'One of the selected deliveries is already assigned to a load.' };
+  const load = {
+    id:'ld' + (++state.seq), loadId, truckPlate, eta,
+    deliveryIds:ids, createdAt:now(), createdBy:me.id, createdByName:me.name
+  };
+  state.loads.push(load);
+  ds.forEach(d => { d.loadRef = load.id; });
+  logEvent('load', `Load ${loadId} (truck ${truckPlate}) assigned — ${ds.map(d => d.no).join(', ')}`);
+  save();
+  return { ok:true, load };
+}
+
+function updateLoad(id, { truckPlate, eta }){
+  if (!canManageLoads()) return { ok:false, reason:'Only the Team Leader can edit a load.' };
+  const load = state.loads.find(x => x.id === id);
+  if (!load) return { ok:false };
+  load.truckPlate = truckPlate;
+  load.eta = eta;
+  logEvent('load', `Load ${load.loadId} updated — truck ${truckPlate}`);
+  save();
+  return { ok:true };
+}
+
+function removeLoad(id){
+  if (!canManageLoads()) return { ok:false, reason:'Only the Team Leader can ungroup a load.' };
+  const load = state.loads.find(x => x.id === id);
+  if (!load) return { ok:false };
+  for (const d of state.deliveries) if (d.loadRef === id) d.loadRef = null;
+  state.loads = state.loads.filter(x => x.id !== id);
+  logEvent('load', `Load ${load.loadId} ungrouped`);
+  save();
+  return { ok:true };
+}
+
 /* ============================================================
    9. SEED — a believable shift, built through the real engine
    ============================================================ */
@@ -1276,12 +1353,13 @@ function currentOperator(d){
   return d.history.length ? d.history[d.history.length - 1].byName : '';
 }
 
-function tileHTML(d){
+function tileHTML(d, selectMode){
   const a = ageState(d);
   const c = DEST_BY_ID[d.country];
   const held = minsAgo(d.statusAt);
   const op = currentOperator(d);
-  return `<button class="tile" draggable="true" data-id="${d.id}" style="--edge:${COLOR_HEX[d.marker.cone]}">
+  return `<button class="tile${selectMode ? ' tile-select' : ''}" draggable="${selectMode ? 'false' : 'true'}" data-id="${d.id}"${selectMode ? ' aria-pressed="false"' : ''} style="--edge:${COLOR_HEX[d.marker.cone]}">
+    ${selectMode ? '<span class="tile-chk" aria-hidden="true"></span>' : ''}
     <span class="tile-top">
       <span class="tile-mk">${markerSVG(d.marker, tvMode ? 46 : 38)}</span>
       <span class="tile-id">
@@ -1302,6 +1380,29 @@ function tileHTML(d){
 }
 
 let boardFilter = 'all';   /* 'all' | 'EU' | 'EXPORT' */
+
+/* ---------- truck / load grouping (staging lanes only) ---------- */
+const STAGING_LANES = ['next_day', 'today'];
+let loadSelectLane = null;      /* lane id currently in "pick deliveries for a load" mode, or null */
+let loadSelectIds = new Set();  /* delivery ids picked while selecting */
+
+function loadCardHTML(load, list){
+  const pallets = list.reduce((n, d) => n + d.picks, 0);
+  const manage = canManageLoads();
+  return `<div class="load-card" data-load="${load.id}">
+    <div class="load-head">
+      <span class="load-id">Load ${esc(load.loadId)}</span>
+      <span class="load-truck">${esc(load.truckPlate || 'No plate yet')}${load.eta ? ' · ETA ' + esc(load.eta) : ''}</span>
+      <span class="load-ct">${list.length} deliver${list.length === 1 ? 'y' : 'ies'} · ${pallets} pallet${pallets === 1 ? '' : 's'}</span>
+      ${manage ? `<span class="load-actions">
+        <button class="btn btn-quiet btn-sm" data-load-edit="${load.id}">Edit</button>
+        <button class="btn btn-quiet btn-sm" data-load-remove="${load.id}">Ungroup</button>
+      </span>` : ''}
+    </div>
+    <div class="load-body">${list.map(d => tileHTML(d)).join('')}</div>
+  </div>`;
+}
+
 function renderBoard(){
   const byStatus = {};
   for (const s of STATUS_IDS) byStatus[s] = [];
@@ -1316,23 +1417,69 @@ function renderBoard(){
   $('#board').innerHTML = STATUSES.map(s => {
     const list = byStatus[s.id];
     const pallets = list.reduce((n, d) => n + d.picks, 0);
+    const staging = STAGING_LANES.includes(s.id);
+    const selecting = staging && loadSelectLane === s.id;
+    let bodyHTML;
+    if (staging) {
+      const grouped = new Map();
+      const ungrouped = [];
+      for (const d of list) {
+        const load = d.loadRef && state.loads.find(l => l.id === d.loadRef);
+        if (load) { if (!grouped.has(load.id)) grouped.set(load.id, []); grouped.get(load.id).push(d); }
+        else ungrouped.push(d);
+      }
+      const cardsHTML = Array.from(grouped.entries())
+        .map(([id, ds]) => loadCardHTML(state.loads.find(l => l.id === id), ds)).join('');
+      const tilesHTML = ungrouped.map(d => tileHTML(d, selecting)).join('');
+      bodyHTML = (cardsHTML + tilesHTML) || `<p class="lane-empty">${esc(s.hint)}</p>`;
+      if (selecting) {
+        bodyHTML += `<div class="load-select-bar">
+          <span>${loadSelectIds.size} selected</span>
+          <span class="sp"></span>
+          <button class="btn btn-sm" data-load-cancel>Cancel</button>
+          <button class="btn btn-accent btn-sm" data-load-assign ${loadSelectIds.size ? '' : 'disabled'}>Assign truck</button>
+        </div>`;
+      }
+    } else {
+      bodyHTML = list.length ? list.map(d => tileHTML(d)).join('') : `<p class="lane-empty">${esc(s.hint)}</p>`;
+    }
+    const headExtra = staging && canManageLoads()
+      ? `<div class="lane-tools"><button class="btn btn-quiet btn-sm" data-load-toggle="${s.id}">${selecting ? 'Cancel' : 'Create load'}</button></div>` : '';
     return `<section class="lane" data-lane="${s.id}">
       <header class="lane-head">
         <span class="nm">${esc(s.name)}<br><span class="pl">${pallets} pallet${pallets === 1 ? '' : 's'}</span></span>
         <span class="ct">${list.length}</span>
       </header>
-      <div class="lane-body">
-        ${list.length ? list.map(tileHTML).join('') : `<p class="lane-empty">${esc(s.hint)}</p>`}
-      </div>
+      ${headExtra}
+      <div class="lane-body">${bodyHTML}</div>
     </section>`;
   }).join('');
   wireBoard();
 }
 
+function updateLoadSelectBar(){
+  const bar = $('#board .load-select-bar');
+  if (!bar) return;
+  $('span', bar).textContent = `${loadSelectIds.size} selected`;
+  const btn = $('[data-load-assign]', bar);
+  if (btn) btn.disabled = !loadSelectIds.size;
+}
+
 let dragId = null;
 function wireBoard(){
   $$('#board .tile').forEach(el => {
-    el.addEventListener('click', () => openDelivery(el.dataset.id));
+    el.addEventListener('click', () => {
+      if (el.classList.contains('tile-select')) {
+        const id = el.dataset.id;
+        const wasOn = loadSelectIds.has(id);
+        if (wasOn) loadSelectIds.delete(id); else loadSelectIds.add(id);
+        el.classList.toggle('selected', !wasOn);
+        el.setAttribute('aria-pressed', String(!wasOn));
+        updateLoadSelectBar();
+        return;
+      }
+      openDelivery(el.dataset.id);
+    });
     el.addEventListener('dragstart', ev => {
       if (tvMode) { ev.preventDefault(); return; }
       dragId = el.dataset.id;
@@ -1353,6 +1500,32 @@ function wireBoard(){
       dragId = null;
     });
   });
+  $$('#board [data-load-toggle]').forEach(b => b.addEventListener('click', () => {
+    const lane = b.dataset.loadToggle;
+    loadSelectLane = loadSelectLane === lane ? null : lane;
+    loadSelectIds = new Set();
+    renderBoard();
+  }));
+  $$('#board [data-load-cancel]').forEach(b => b.addEventListener('click', () => {
+    loadSelectLane = null; loadSelectIds = new Set(); renderBoard();
+  }));
+  $$('#board [data-load-assign]').forEach(b => b.addEventListener('click', () => {
+    if (!loadSelectIds.size) return;
+    truckModal({ mode:'create', deliveryIds:Array.from(loadSelectIds) });
+  }));
+  $$('#board [data-load-edit]').forEach(b => b.addEventListener('click', () => {
+    const load = state.loads.find(x => x.id === b.dataset.loadEdit);
+    if (load) truckModal({ mode:'edit', load });
+  }));
+  $$('#board [data-load-remove]').forEach(b => b.addEventListener('click', () => {
+    const load = state.loads.find(x => x.id === b.dataset.loadRemove);
+    if (!load) return;
+    if (!confirm(`Ungroup load ${load.loadId}? Its deliveries go back to individual tiles.`)) return;
+    const r = removeLoad(load.id);
+    if (!r.ok) { if (r.reason) toast(r.reason, 'bad'); return; }
+    loadSelectLane = null; loadSelectIds = new Set();
+    renderAll();
+  }));
 }
 
 function doMove(id, to){
@@ -1378,6 +1551,7 @@ function renderDrawer(){
   const prev = idx > 0 ? STATUS_IDS[idx - 1] : null;
   const next = idx >= 0 && idx < STATUS_IDS.length - 1 ? STATUS_IDS[idx + 1] : null;
   const staged = d.status === 'today' || d.status === 'next_day';
+  const load = d.loadRef ? state.loads.find(l => l.id === d.loadRef) : null;
 
   dr.innerHTML = `
     <div class="dr-head">
@@ -1401,6 +1575,15 @@ function renderDrawer(){
           ${d.priority ? '<dt>Flag</dt><dd style="color:var(--alert)">Priority</dd>' : ''}
         </dl>
       </div>
+      ${load ? `<div class="dr-sect">
+        <h3>Truck</h3>
+        <dl class="facts">
+          <dt>Load ID</dt><dd>${esc(load.loadId)}</dd>
+          <dt>Plate</dt><dd>${esc(load.truckPlate || '—')}</dd>
+          <dt>ETA</dt><dd>${esc(load.eta || '—')}</dd>
+        </dl>
+        ${canManageLoads() ? `<button class="btn btn-quiet btn-sm" id="drLoadEdit" style="margin-top:8px">Edit truck</button>` : ''}
+      </div>` : ''}
       <div class="dr-sect">
         <h3>Cones held</h3>
         <dl class="facts">
@@ -1430,6 +1613,8 @@ function renderDrawer(){
   $$('#drawer [data-to]').forEach(b => b.addEventListener('click', () => doMove(d.id, b.dataset.to)));
   const rb = $('#drReturn');
   if (rb) rb.addEventListener('click', () => returnModal(d.id));
+  const leb = $('#drLoadEdit');
+  if (leb) leb.addEventListener('click', () => truckModal({ mode:'edit', load }));
 }
 
 /* ============================================================
@@ -1644,6 +1829,72 @@ function returnModal(id){
   });
 }
 
+/* ---------- assign a truck to a load ---------- */
+function truckModal({ mode, deliveryIds, load }){
+  if (!canManageLoads()) { toast('Only the Team Leader can assign a truck.', 'bad'); return; }
+  const editing = mode === 'edit';
+  const ds = editing
+    ? load.deliveryIds.map(id => state.deliveries.find(x => x.id === id)).filter(Boolean)
+    : deliveryIds.map(id => state.deliveries.find(x => x.id === id)).filter(Boolean);
+  openModal(`<div class="modal" role="dialog" aria-modal="true" aria-label="Assign truck">
+    <div class="md-head">
+      <div style="flex:1">
+        <h2>${editing ? `Edit load ${esc(load.loadId)}` : 'Assign a truck'}</h2>
+        <p>${ds.length} deliver${ds.length === 1 ? 'y' : 'ies'}: ${ds.map(d => esc(d.no)).join(', ')}</p>
+      </div>
+      <button class="btn btn-quiet" id="tmX" aria-label="Close">&times;</button>
+    </div>
+    <div class="md-body">
+      ${editing ? '' : `<div class="field" id="fLoadId">
+        <label for="tmLoadId">Load ID</label>
+        <input id="tmLoadId" autocomplete="off" placeholder="e.g. the WMS trip number">
+        <p class="err"></p>
+      </div>`}
+      <div class="row2">
+        <div class="field" id="fPlate">
+          <label for="tmPlate">Truck plate</label>
+          <input id="tmPlate" autocomplete="off" value="${editing ? esc(load.truckPlate || '') : ''}">
+          <p class="err"></p>
+        </div>
+        <div class="field">
+          <label for="tmEta">ETA</label>
+          <input id="tmEta" type="time" value="${editing ? esc(load.eta || '') : ''}">
+        </div>
+      </div>
+    </div>
+    <div class="md-foot">
+      <div class="sp"></div>
+      <button class="btn" id="tmCancel">Cancel</button>
+      <button class="btn btn-accent" id="tmGo">${editing ? 'Save' : 'Assign truck'}</button>
+    </div>
+  </div>`);
+  $('#tmX').addEventListener('click', closeModal);
+  $('#tmCancel').addEventListener('click', closeModal);
+  $('#tmGo').addEventListener('click', () => {
+    const truckPlate = $('#tmPlate').value.trim();
+    const eta = $('#tmEta').value;
+    let ok = setErr('fPlate', !truckPlate ? 'Enter the truck plate.' : '');
+    if (editing) {
+      if (!ok) return;
+      const r = updateLoad(load.id, { truckPlate, eta });
+      closeModal();
+      if (!r.ok) { toast(r.reason || 'Could not update the load.', 'bad'); return; }
+      renderAll();
+      toast(`Load ${load.loadId} updated.`, 'good');
+    } else {
+      const loadId = $('#tmLoadId').value.trim();
+      ok = setErr('fLoadId', !loadId ? 'Enter the Load ID.' : '') && ok;
+      if (!ok) return;
+      const r = createLoad({ loadId, truckPlate, eta, deliveryIds });
+      closeModal();
+      if (!r.ok) { toast(r.reason || 'Could not assign the truck.', 'bad'); return; }
+      loadSelectLane = null; loadSelectIds = new Set();
+      renderAll();
+      toast(`Load ${loadId} assigned to truck ${truckPlate}.`, 'good');
+    }
+  });
+}
+
 /* ============================================================
    14. RENDER — cone stock
    ============================================================ */
@@ -1775,6 +2026,7 @@ function tryLogin(){
 
 function signOut(){
   me = null; openDeliveryId = null;
+  loadSelectLane = null; loadSelectIds = new Set();
   try { sessionStorage.removeItem('oct.demo.me'); } catch (e) {}
   if (tvMode) setTv(false);
   $('#app').classList.add('hidden');
@@ -1845,6 +2097,7 @@ function boot(){
   $('#btnOut').addEventListener('click', signOut);
   $('#btnReset').addEventListener('click', () => {
     if (!confirm('Reset the demo? Every delivery goes back to the starting shift and all cones return to the rack.')) return;
+    loadSelectLane = null; loadSelectIds = new Set();
     seed(); renderAll(); setView('board');
     toast('Demo data reset. The board is back to the starting shift.', 'good');
   });
