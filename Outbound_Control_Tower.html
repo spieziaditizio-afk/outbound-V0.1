@@ -302,7 +302,7 @@ h2.act-title{
           <div>
             <span class="num">80412771 · 8 picks</span>
             <h3>Allocated</h3>
-            <p>The delivery is registered once — number and picks — and the <b>allocation engine</b> picks the marker automatically: a plain cone, or a cone + disc/hex when a combo is needed.</p>
+            <p>The delivery is registered once — number and picks — and the <b>allocation engine</b> picks the marker automatically: a plain cone, or — when more variety is needed — a cone with a disc or hex on top, a disc or hex on its own, or two toppers stacked in different colors (disc + disc, hex + hex, disc + hex).</p>
             <span class="same">Same as today: 1 card per delivery</span>
             <span class="plus">New: the marker is calculated, not eyeballed</span>
           </div>
@@ -375,7 +375,7 @@ h2.act-title{
         <div class="value-card">
           <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 3v18M4 7.5l8 4.5 8-4.5"/></svg>
           <h4>Marker allocation engine</h4>
-          <p>A plain cone for 1&ndash;6 picks, combining color and shape; a single fixed color and shape from 7 picks up — the same rule applied by hand today, now calculated on its own.</p>
+          <p>Plain cone first, then cone + disc/hex, a disc or hex alone, or two toppers stacked in different colors (disc + disc, hex + hex, disc + hex) for 1&ndash;6 picks; always a single color and shape from 7 picks up — the same rule applied by hand today, now calculated on its own.</p>
         </div>
         <div class="value-card">
           <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12h18M12 3a15 15 0 010 18 15 15 0 010-18z"/></svg>
@@ -408,10 +408,49 @@ h2.act-title{
 
   <div class="hazard"></div>
 
+  <!-- ============ ACT 4 — LIVE STATUS FEED ============ -->
+  <section class="act act-light">
+    <div class="wrap">
+      <div class="eyebrow">04 &mdash; Real-time status</div>
+      <h2 class="act-title">Statuses that update on their own, every minute</h2>
+      <p class="lede">Today someone has to move each card by hand. The board can also read a small CSV file exported by the warehouse system (WMS) every minute and move the deliveries automatically &mdash; so what you see on screen is what the system already knows.</p>
+
+      <div class="req-groups">
+        <div class="req-group">
+          <div class="gtitle">Columns the board needs<span>Operational data only</span></div>
+          <ul class="req-list">
+            <li><span class="chk"></span><span><b>Delivery number</b> &mdash; the key that matches each row to its card.</span></li>
+            <li><span class="chk"></span><span><b>Status</b> &mdash; the WMS status code, mapped to the 7 board columns.</span></li>
+            <li><span class="chk"></span><span><b>Status timestamp</b> &mdash; when it last changed, to drive the time-in-status alerts.</span></li>
+            <li><span class="chk"></span><span><b>Destination country code</b> &mdash; flag and Europe / Export filter.</span></li>
+            <li><span class="chk"></span><span><b>Pick labels and pallet count</b> &mdash; sizes the marker and the cone stock.</span></li>
+            <li><span class="chk"></span><span><b>Priority flag</b> and <b>planned pick-up</b> (today / next day).</span></li>
+          </ul>
+        </div>
+        <div class="req-group">
+          <div class="gtitle">What stays out<span>Nothing sensitive leaves the WMS</span></div>
+          <ul class="req-list">
+            <li><span class="chk"></span><span>No customer names, prices, order values or article detail &mdash; only what is needed to read a delivery's status at a glance.</span></li>
+          </ul>
+        </div>
+        <div class="req-group">
+          <div class="gtitle">How it behaves<span>Same board, fed automatically</span></div>
+          <ul class="req-list">
+            <li><span class="chk"></span><span>The file is read every minute; a new or changed row creates or moves the card, and the change is written to the history as coming from the WMS.</span></li>
+            <li><span class="chk"></span><span>Manual moves stay available as a fallback if the file is late.</span></li>
+            <li><span class="chk"></span><span>The team leader decides from the screen &mdash; late, stuck or priority deliveries show up without anyone walking to the board.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="hazard"></div>
+
   <!-- ============ ACT 5 — NEXT STEPS + CTA ============ -->
   <section class="act act-dark closing">
     <div class="wrap">
-      <div class="eyebrow">04 &mdash; Next steps</div>
+      <div class="eyebrow">05 &mdash; Next steps</div>
       <h2>We propose starting small: one shift, one area, measure, and only then scale.</h2>
 
       <ul class="pilot">
@@ -425,13 +464,18 @@ h2.act-title{
           <h5>Measure adoption</h5>
           <p>Does the team leader check the screen instead of walking to the board? Do fewer cards go missing?</p>
         </li>
+        <li>
+          <div class="wk">Step 3</div>
+          <h5>Connect the WMS feed</h5>
+          <p>Feed the pilot from the one-minute CSV so statuses move on their own, still alongside the physical board.</p>
+        </li>
       </ul>
 
       <div class="foot-row">
         <span class="pill-btn">See the live demo</span>
         <span class="pill-btn ghost">Schedule with IT</span>
       </div>
-      <p class="filenote">The working demo is at <code>Outbound Control Tower - DEMO.html</code> — it opens in any browser, nothing to install, with sample data already loaded.</p>
+      <p class="filenote">The working demo is at <code>Outbound Digital Board.html</code> — it opens in any browser, nothing to install, with sample data already loaded.</p>
     </div>
   </section>
 </div>

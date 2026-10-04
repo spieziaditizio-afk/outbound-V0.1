@@ -1,9 +1,8 @@
-# Graph Report - outbound V0.1  (2026-10-04)
+# Graph Report - outbound V0.1  (2026-09-22)
 
 ## Corpus Check
-- 15 files · ~183,286 words
+- 15 files · ~175,777 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 2 file(s) not represented in the graph (top: .log 2)
 
 ## Summary
 - 175 nodes · 156 edges · 25 communities (13 shown, 12 thin omitted)
@@ -11,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f428c889`
+- Built from commit: `f94d2dbc`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

@@ -605,13 +605,14 @@ const COLOR_NAME = {
 const STOCK = {
   cone: { label:'Traffic cone 30 cm',  brand:'Mooffz',    note:'The base marker. One per pallet, sits on the top carton.',
           counts:{ red:50, yellow:50, blue:50, green:50, purple:40, orange:10 } },
-  disc: { label:'Saucer cone',         brand:'Cawila',    note:'Goes on top of a traffic cone to make a two-colour marker.',
+  disc: { label:'Saucer cone',         brand:'Cawila',    note:'Goes on a traffic cone, or stands alone, or stacks with another saucer.',
           counts:{ red:25, purple:25, pink:25, orange:25, blue:25, white:25, black:25, yellow:25, green:25 } },
-  hex:  { label:'Pro HX saucer 200 mm',brand:'Precision', note:'Hexagonal topper. Reads differently from the round saucer at distance.',
+  hex:  { label:'Pro HX saucer 200 mm',brand:'Precision', note:'Hexagonal topper. Reads differently from the round saucer at distance. Also works alone or stacked.',
           counts:{ green:20, purple:20, yellow:20, red:20, orange:20 } }
 };
 const TOPPER_NAME = { disc:'disc', hex:'hex' };
 const TOPPER_PLURAL = { disc:'discs', hex:'hexes' };
+function piecePlural(p, n){ return COLOR_NAME[p.color] + ' ' + (p.type === 'cone' ? (n === 1 ? 'cone' : 'cones') : topperWord(p.type, n == null ? 2 : n)); }
 function topperWord(t, n){ return n === 1 ? TOPPER_NAME[t] : TOPPER_PLURAL[t]; }
 
 /* Colours that are hard to tell apart from a VNA cabin or across the yard.
@@ -769,46 +770,59 @@ function destFlag(dest){ return dest.flag || dest.id; }
    3. MARKER DRAWING
    A marker is a traffic cone, on its own or wearing a topper.
    ============================================================ */
+/* A marker is one or two stacked pieces, bottom first:
+     cone              plain cone
+     cone + topper     cone with a disc or hex on top
+     topper            a disc or hex on its own          (cone:null)
+     topper + topper   disc/hex stacked on disc/hex      (cone:null, under:{type,color})
+   pieces() is the one place that knows this, so stock, returns and the
+   screens all read the same list. */
+function pieces(m){
+  const p = [];
+  if (m.cone) p.push({ type:'cone', color:m.cone });
+  else if (m.under) p.push({ type:m.under.type, color:m.under.color });
+  if (m.topper) p.push({ type:m.topper, color:m.topperColor });
+  return p;
+}
+function pieceName(p, i){
+  const c = i ? COLOR_NAME[p.color].toLowerCase() : COLOR_NAME[p.color];
+  return c + ' ' + (p.type === 'cone' ? 'cone' : TOPPER_NAME[p.type]);
+}
 function markerName(m){
   if (!m) return 'Not assigned';
-  if (!m.cone) return COLOR_NAME[m.topperColor] + ' ' + TOPPER_NAME[m.topper];
-  const base = COLOR_NAME[m.cone] + ' cone';
-  if (!m.topper) return base;
-  return base + ' + ' + COLOR_NAME[m.topperColor].toLowerCase() + ' ' + TOPPER_NAME[m.topper];
+  return pieces(m).map(pieceName).join(' + ');
 }
-function markerKey(m){ return m ? [m.cone, m.topper || '-', m.topperColor || '-'].join('|') : ''; }
+function markerKey(m){ return m ? pieces(m).map(p => p.type + ':' + p.color).join('|') : ''; }
 
 /* Short form for the board tiles, where a lane is only so wide. */
-function markerShort(m){
-  if (!m) return '—';
-  if (!m.topper) return COLOR_NAME[m.cone] + ' cone';
-  return COLOR_NAME[m.cone] + ' + ' + COLOR_NAME[m.topperColor].toLowerCase() + ' ' + TOPPER_NAME[m.topper];
-}
+function markerShort(m){ return m ? markerName(m) : '—'; }
 
+function topperSVG(type, color, O){
+  const tc = COLOR_HEX[color];
+  return type === 'disc'
+    ? `<path d="M5 21 Q20 4 35 21 Z" fill="${tc}" ${O}/>`
+      + `<path d="M11.5 16 Q20 9.5 28.5 15" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.7" stroke-linecap="round"/>`
+    : `<path d="M5 14 L11 5 L29 5 L35 14 L29 21 L11 21 Z" fill="${tc}" ${O}/>`
+      + `<path d="M12 9 L26 9" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/>`;
+}
 function markerSVG(m, h){
   const w = Math.round(h * 40 / 50);
   const O = 'stroke="rgba(0,0,0,.45)" stroke-width="1.1" stroke-linejoin="round"';
   if (!m) return `<svg width="${w}" height="${h}" viewBox="0 0 40 50" aria-hidden="true"></svg>`;
-  const cc = COLOR_HEX[m.cone];
-  const combo = !!m.topper;
-  const alone = !m.cone;                     /* topper drawn by itself */
-  const y0 = combo ? 21 : 7, aw = combo ? 3.6 : 4.2, hw = 13;
   let g = '';
-  if (combo) {
-    const tc = COLOR_HEX[m.topperColor];
-    if (m.topper === 'disc') {
-      g += `<path d="M5 21 Q20 4 35 21 Z" fill="${tc}" ${O}/>`
-         + `<path d="M11.5 16 Q20 9.5 28.5 15" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.7" stroke-linecap="round"/>`;
-    } else {
-      g += `<path d="M5 14 L11 5 L29 5 L35 14 L29 21 L11 21 Z" fill="${tc}" ${O}/>`
-         + `<path d="M12 9 L26 9" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/>`;
-    }
-  }
-  if (alone) g = `<g transform="translate(0,14)">${g}</g>`;
-  else {
+  if (m.cone) {
+    const cc = COLOR_HEX[m.cone];
+    const combo = !!m.topper;
+    const y0 = combo ? 21 : 7, aw = combo ? 3.6 : 4.2, hw = 13;
+    if (combo) g += topperSVG(m.topper, m.topperColor, O);
     g += `<path d="M${20 - aw} ${y0} L${20 - hw} 42 L${20 + hw} 42 L${20 + aw} ${y0} Z" fill="${cc}" ${O}/>`;
     g += `<path d="M${20 - aw + 1} ${y0 + 2} L${20 - hw + 3} 40" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.6" stroke-linecap="round"/>`;
     g += `<rect x="3" y="42" width="34" height="5" rx="1" fill="${cc}" ${O}/>`;
+  } else if (m.under) {                      /* two toppers stacked, no cone */
+    g = `<g transform="translate(0,24)">${topperSVG(m.under.type, m.under.color, O)}</g>`
+      + `<g transform="translate(0,9)">${topperSVG(m.topper, m.topperColor, O)}</g>`;
+  } else {                                   /* one topper by itself */
+    g = `<g transform="translate(0,14)">${topperSVG(m.topper, m.topperColor, O)}</g>`;
   }
   return `<svg class="mk" width="${w}" height="${h}" viewBox="0 0 40 50" role="img" aria-label="${esc(markerName(m))}">${g}</svg>`;
 }
@@ -958,11 +972,7 @@ function reservations(){
   const r = { cone:{}, disc:{}, hex:{} };
   for (const d of state.deliveries) {
     if (d.status === CLOSED || !d.marker) continue;
-    r.cone[d.marker.cone] = (r.cone[d.marker.cone] || 0) + d.picks;
-    if (d.marker.topper) {
-      const p = r[d.marker.topper];
-      p[d.marker.topperColor] = (p[d.marker.topperColor] || 0) + d.picks;
-    }
+    for (const p of pieces(d.marker)) r[p.type][p.color] = (r[p.type][p.color] || 0) + d.picks;
   }
   return r;
 }
@@ -991,15 +1001,14 @@ function holderOf(key){
 function coneUsage(){
   const u = {};
   for (const c of Object.keys(STOCK.cone.counts)) u[c] = 0;
-  for (const d of state.deliveries) if (d.status !== CLOSED && d.marker) u[d.marker.cone]++;
+  for (const d of state.deliveries) if (d.status !== CLOSED && d.marker && d.marker.cone) u[d.marker.cone]++;
   return u;
 }
 function topperUsage(){
   const u = {};
   for (const d of state.deliveries) {
-    if (d.status === CLOSED || !d.marker || !d.marker.topper) continue;
-    const k = d.marker.topperColor;
-    u[k] = (u[k] || 0) + 1;
+    if (d.status === CLOSED || !d.marker) continue;
+    for (const p of pieces(d.marker)) if (p.type !== 'cone') u[p.color] = (u[p.color] || 0) + 1;
   }
   return u;
 }
@@ -1020,23 +1029,20 @@ function candidates(picks, res, used){
   }
   tiers.push(plain);
 
-  /* 7 pallets or more always ships under a single colour and shape — a
-     two-piece marker is too easy to misread across a big stack. Combos
-     stay available only for the small deliveries where they're common. */
-  if (picks >= COMBO_MAX_PICKS) return tiers;
-
-  /* One combination tier holding both topper shapes. Shape is a difference
-     an operator can read at distance, so a round saucer and a hexagon are
-     not interchangeable — the two stocks are drained evenly instead. */
+  /* Topper pressure: a round saucer and a hexagon read differently at
+     distance, so the two stocks are drained evenly instead of one first. */
   const pressure = {};
   for (const tt of ['disc','hex']) {
     let tot = 0, out = 0;
     for (const t of Object.keys(STOCK[tt].counts)) { tot += totalOf(tt, t); out += (res[tt] && res[tt][t]) || 0; }
     pressure[tt] = tot ? out / tot : 1;
   }
+  const small = picks < COMBO_MAX_PICKS;
 
+  /* Cone + topper. 7 pallets or more always ships under a single colour and
+     shape — a two-piece marker is too easy to misread across a big stack. */
   const combo = [];
-  for (const c of coneColors) {
+  if (small) for (const c of coneColors) {
     const cf = freeOf(res, 'cone', c);
     if (cf < picks) continue;
     for (const tt of ['disc','hex']) {
@@ -1060,6 +1066,38 @@ function candidates(picks, res, used){
     }
   }
   tiers.push(combo);
+
+  /* No cone at all: a disc or a hex on its own (any size — one colour, one
+     shape), then two toppers stacked (small deliveries only). */
+  const kinds = [];
+  for (const tt of ['disc','hex']) for (const t of Object.keys(STOCK[tt].counts)) {
+    const free = freeOf(res, tt, t);
+    if (free >= picks) kinds.push({ type:tt, color:t, free });
+  }
+  const solo = [];
+  for (const k of kinds) {
+    const m = { cone:null, topper:k.type, topperColor:k.color };
+    if (used.has(markerKey(m))) continue;
+    solo.push({ m, score: Math.round(pressure[k.type] * 3e5) + (tUse[k.color] || 0) * 2e4 + (k.free - picks) });
+  }
+  tiers.push(solo);
+
+  /* One canonical order per pair — hex under disc, and for same-shape pairs
+     the colours in name order — so "red over blue" and "blue over red" are
+     never two different markers on the floor. */
+  const stack = [];
+  if (small) for (const lo of kinds) for (const hi of kinds) {
+    if (lo.color === hi.color) continue;
+    if (lo.type === hi.type ? lo.color > hi.color : lo.type !== 'hex') continue;
+    const m = { cone:null, under:{ type:lo.type, color:lo.color }, topper:hi.type, topperColor:hi.color };
+    if (used.has(markerKey(m))) continue;
+    stack.push({ m, score:
+        (isConfusable(lo.color, hi.color) ? 5e5 : 0)
+      + Math.round((pressure[lo.type] + pressure[hi.type]) * 1.5e5)
+      + ((tUse[lo.color] || 0) + (tUse[hi.color] || 0)) * 2e4
+      + (lo.free - picks) + (hi.free - picks) });
+  }
+  tiers.push(stack);
   return tiers;
 }
 
@@ -1132,24 +1170,26 @@ function moveDelivery(id, to){
   return { ok:true };
 }
 
-function returnCones(id, coneBack, topperBack){
+function returnCones(id, back){
   const d = state.deliveries.find(x => x.id === id);
   if (!d || !d.marker) return { ok:false };
   if (!ROLES[me.role].ret) return { ok:false, reason:`${ROLES[me.role].name} cannot confirm cone returns.` };
-  const lostCone = Math.max(0, d.picks - coneBack);
-  const lostTop  = d.marker.topper ? Math.max(0, d.picks - topperBack) : 0;
-  if (lostCone) state.lost.cone[d.marker.cone] = (state.lost.cone[d.marker.cone] || 0) + lostCone;
-  if (lostTop)  state.lost[d.marker.topper][d.marker.topperColor] = (state.lost[d.marker.topper][d.marker.topperColor] || 0) + lostTop;
+  /* back[i] is how many of piece i (bottom first) came back */
+  const lost = pieces(d.marker).map((p, i) => {
+    const n = Math.max(0, d.picks - (back[i] || 0));
+    if (n) state.lost[p.type][p.color] = (state.lost[p.type][p.color] || 0) + n;
+    return n;
+  });
   d.status = CLOSED;
   d.statusAt = now();
-  d.returned = { at:now(), by:me.id, byName:me.name, coneBack, topperBack, lostCone, lostTop };
+  d.returned = { at:now(), by:me.id, byName:me.name, back, lost };
   d.history.push({ at:now(), status:CLOSED, by:me.id, byName:me.name });
-  const missing = lostCone + lostTop;
+  const missing = lost.reduce((a, n) => a + n, 0);
   logEvent('return',
     `${markerName(d.marker)} released from ${d.no}` + (missing ? ` — ${missing} piece${missing === 1 ? '' : 's'} missing` : ''),
     d.no);
   save();
-  return { ok:true, lostCone, lostTop };
+  return { ok:true, missing };
 }
 
 /* Packing can stack boxes from several pick labels onto one pallet, so the
@@ -1168,11 +1208,9 @@ function consolidatePallets(id, finalCount){
   }
   if (finalCount > d.picks) {
     const res = reservations();
-    const coneCap = freeOf(res, 'cone', d.marker.cone) + d.picks;
-    if (finalCount > coneCap) return { ok:false, reason:`Only ${coneCap} ${COLOR_NAME[d.marker.cone].toLowerCase()} cones are available.` };
-    if (d.marker.topper) {
-      const topCap = freeOf(res, d.marker.topper, d.marker.topperColor) + d.picks;
-      if (finalCount > topCap) return { ok:false, reason:`Only ${topCap} ${COLOR_NAME[d.marker.topperColor].toLowerCase()} ${topperWord(d.marker.topper, finalCount)} are available.` };
+    for (const p of pieces(d.marker)) {
+      const cap = freeOf(res, p.type, p.color) + d.picks;
+      if (finalCount > cap) return { ok:false, reason:`Only ${cap} ${piecePlural(p, cap).toLowerCase()} are available.` };
     }
   }
   const freed = d.picks - finalCount;
@@ -1334,7 +1372,7 @@ function tileHTML(d){
   const c = DEST_BY_ID[d.country];
   const held = minsAgo(d.statusAt);
   const op = currentOperator(d);
-  return `<button class="tile" draggable="true" data-id="${d.id}" style="--edge:${COLOR_HEX[d.marker.cone]}">
+  return `<button class="tile" draggable="true" data-id="${d.id}" style="--edge:${COLOR_HEX[pieces(d.marker)[0].color]}">
     <span class="tile-top">
       <span class="tile-mk">${markerSVG(d.marker, tvMode ? 46 : 38)}</span>
       <span class="tile-id">
@@ -1483,8 +1521,7 @@ function renderDrawer(){
       <div class="dr-sect">
         <h3>Cones held</h3>
         <dl class="facts">
-          <dt>${esc(COLOR_NAME[d.marker.cone])} cones</dt><dd>${d.picks}</dd>
-          ${d.marker.topper ? `<dt>${esc(COLOR_NAME[d.marker.topperColor])} ${esc(topperWord(d.marker.topper, d.picks))}</dt><dd>${d.picks}</dd>` : ''}
+          ${pieces(d.marker).map(p => `<dt>${esc(piecePlural(p))}</dt><dd>${d.picks}</dd>`).join('')}
         </dl>
       </div>
       <div class="dr-sect">
@@ -1617,7 +1654,8 @@ function submitNewDelivery(){
   ok = setErr('fCty', !country ? 'Choose the destination country.' : '') && ok;
   if (!ok) return;
 
-  const freeBefore = freeOf(reservations(), 'cone', (allocate(picks).marker || { cone:'red' }).cone);
+  const am = allocate(picks).marker;
+  const freeBefore = am ? freeOf(reservations(), pieces(am)[0].type, pieces(am)[0].color) : 0;
   const r = createDelivery({ no, country, picks, priority });
   if (!r.ok) { toast(r.reason, 'bad'); return; }
   renderAll();
@@ -1626,13 +1664,21 @@ function submitNewDelivery(){
 
 /* ---------- assignment ticket: the moment the marker is revealed ---------- */
 function explain(m, picks, freeBefore){
-  if (!m.topper) {
+  const n = `${picks} pallet${picks === 1 ? '' : 's'}`;
+  const lc = x => COLOR_NAME[x].toLowerCase();
+  if (m.cone && !m.topper) {
     const why = picks >= COMBO_MAX_PICKS
       ? `${picks} pallets is ${COMBO_MAX_PICKS} or more, so it always ships under a single colour — too easy to misread a combo across a stack that size`
       : `plain cones were still free`;
-    return `${why[0].toUpperCase()}${why.slice(1)}, so this delivery gets a single colour. ${COLOR_NAME[m.cone]} had ${freeBefore} cones free &mdash; the smallest pool that still covers ${picks} pallet${picks === 1 ? '' : 's'}, which keeps the deeper colours open for bigger deliveries.`;
+    return `${why[0].toUpperCase()}${why.slice(1)}, so this delivery gets a single colour. ${COLOR_NAME[m.cone]} had ${freeBefore} cones free &mdash; the smallest pool that still covers ${n}, which keeps the deeper colours open for bigger deliveries.`;
   }
-  return `All six plain cone colours are already out on the floor, so this delivery gets a two-colour marker: a ${COLOR_NAME[m.topperColor].toLowerCase()} ${TOPPER_NAME[m.topper]} sitting on a ${COLOR_NAME[m.cone].toLowerCase()} cone. No live delivery is using this combination, and ${COLOR_NAME[m.cone].toLowerCase()} is the least-used cone colour right now, so the big piece still carries most of the difference.`;
+  if (m.cone) {
+    return `All six plain cone colours are already out on the floor, so this delivery gets a two-colour marker: a ${lc(m.topperColor)} ${TOPPER_NAME[m.topper]} sitting on a ${lc(m.cone)} cone. No live delivery is using this combination, and ${lc(m.cone)} is the least-used cone colour right now, so the big piece still carries most of the difference.`;
+  }
+  if (!m.under) {
+    return `No cone colour can cover ${n} right now, so this delivery gets a ${lc(m.topperColor)} ${TOPPER_NAME[m.topper]} on its own &mdash; one colour, one shape, ${freeBefore} free in the stock.`;
+  }
+  return `No cone can cover ${n} right now, so this delivery gets two toppers stacked: a ${lc(m.topperColor)} ${TOPPER_NAME[m.topper]} on a ${lc(m.under.color)} ${TOPPER_NAME[m.under.type]}. No live delivery is using this pair.`;
 }
 
 function ticketModal(d, freeBefore){
@@ -1654,10 +1700,8 @@ function ticketModal(d, freeBefore){
             <div class="dn">${esc(d.no)}</div>
             <div class="mkname">${esc(markerName(m))}</div>
             <div class="qty">
-              Take <b>${d.picks} ${esc(COLOR_NAME[m.cone].toLowerCase())} cone${d.picks === 1 ? '' : 's'}</b>${
-                m.topper ? ` and <b>${d.picks} ${esc(COLOR_NAME[m.topperColor].toLowerCase())} ${esc(topperWord(m.topper, d.picks))}</b>` : ''
-              } from the rack.<br>
-              One on top of every pallet. Destination ${esc(c.n)} (${esc(destFlag(c))}).
+              Take ${pieces(m).map(p => `<b>${d.picks} ${esc(piecePlural(p, d.picks).toLowerCase())}</b>`).join(' and ')} from the rack.<br>
+              One marker on top of every pallet. Destination ${esc(c.n)} (${esc(destFlag(c))}).
             </div>
           </div>
         </div>
@@ -1690,16 +1734,11 @@ function returnModal(id){
     </div>
     <div class="md-body">
       <div class="row2">
-        <div class="field">
-          <label for="rtCone">${esc(COLOR_NAME[m.cone])} cones back</label>
-          <input id="rtCone" type="number" min="0" max="${d.picks}" value="${d.picks}">
+        ${pieces(m).map((p, i) => `<div class="field">
+          <label for="rtBack${i}">${esc(piecePlural(p))} back</label>
+          <input id="rtBack${i}" type="number" min="0" max="${d.picks}" value="${d.picks}">
           <p class="help">${d.picks} went out.</p>
-        </div>
-        ${m.topper ? `<div class="field">
-          <label for="rtTop">${esc(COLOR_NAME[m.topperColor])} ${esc(TOPPER_PLURAL[m.topper])} back</label>
-          <input id="rtTop" type="number" min="0" max="${d.picks}" value="${d.picks}">
-          <p class="help">${d.picks} went out.</p>
-        </div>` : ''}
+        </div>`).join('')}
       </div>
       <p class="help" style="color:var(--ink-2);line-height:1.5">Anything that does not come back is written off the stock count, so the board stops promising cones that are not on the rack.</p>
     </div>
@@ -1712,14 +1751,13 @@ function returnModal(id){
   $('#rtX').addEventListener('click', closeModal);
   $('#rtCancel').addEventListener('click', closeModal);
   $('#rtGo').addEventListener('click', () => {
-    const cb = Math.max(0, Math.min(d.picks, parseInt($('#rtCone').value, 10) || 0));
-    const tb = m.topper ? Math.max(0, Math.min(d.picks, parseInt($('#rtTop').value, 10) || 0)) : 0;
-    const r = returnCones(d.id, cb, tb);
+    const back = pieces(m).map((p, i) => Math.max(0, Math.min(d.picks, parseInt($('#rtBack' + i).value, 10) || 0)));
+    const r = returnCones(d.id, back);
     closeModal();
     if (!r.ok) { toast(r.reason || 'Could not release the marker.', 'bad'); return; }
     closeDrawer();
     renderAll();
-    const missing = r.lostCone + r.lostTop;
+    const missing = r.missing;
     toast(missing
       ? `${markerName(m)} released. ${missing} piece${missing === 1 ? '' : 's'} written off stock.`
       : `${markerName(m)} is back on the rack and free to use.`, missing ? 'bad' : 'good');
@@ -1822,13 +1860,13 @@ function renderReturns(){
     <thead><tr><th>Marker</th><th>Delivery</th><th>To</th><th class="r">Pieces out</th><th>Loaded</th><th></th></tr></thead>
     <tbody>${list.map(d => {
       const c = DEST_BY_ID[d.country];
-      const pieces = d.picks * (d.marker.topper ? 2 : 1);
+      const out = d.picks * pieces(d.marker).length;
       const late = minsAgo(d.loadedAt) > 60;
       return `<tr>
         <td><span class="mk-inline">${markerSVG(d.marker, 34)}<span>${esc(markerName(d.marker))}</span></span></td>
         <td><b>${esc(d.no)}</b></td>
         <td><span class="mk-inline">${flagSVG(destFlag(c), 13, c.n)}<span>${esc(c.n)}</span></span></td>
-        <td class="r">${pieces}</td>
+        <td class="r">${out}</td>
         <td>${esc(clockTime(d.loadedAt))} <span class="pill ${late ? 'bad' : ''}">${esc(dur(minsAgo(d.loadedAt)))} ago</span></td>
         <td class="r"><button class="btn btn-sm btn-accent" data-ret="${d.id}">Return cones</button></td>
       </tr>`;
@@ -1864,7 +1902,8 @@ function renderLogin(){
     { cone:'blue', topper:'disc', topperColor:'yellow' },
     { cone:'green', topper:null },
     { cone:'purple', topper:'hex', topperColor:'orange' },
-    { cone:'yellow', topper:'disc', topperColor:'black' }
+    { cone:'yellow', topper:'disc', topperColor:'black' },
+    { cone:null, under:{ type:'hex', color:'green' }, topper:'disc', topperColor:'white' }
   ].map(m => markerSVG(m, 74)).join('');
 
   $('#userGrid').innerHTML = USERS.map(u => `<button class="user-btn" data-u="${u.id}" aria-pressed="false">

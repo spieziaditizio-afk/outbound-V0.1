@@ -1,0 +1,44 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e5]:
+      - heading "Outbound Digital Board" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Every delivery on the floor, the cone that marks its pallets, and who moved it last.
+    - generic [ref=e8]:
+      - img "Red cone" [ref=e9]
+      - img "Blue cone + yellow disc" [ref=e13]
+      - img "Green cone" [ref=e19]
+      - img "Purple cone + orange hex" [ref=e23]
+      - img "Yellow cone + black disc" [ref=e28]
+      - img "Green hex + white disc" [ref=e34]
+    - paragraph [ref=e40]: Special Operations Area / Sevenum, Netherlands Demonstration build — data stays in this browser.
+  - generic [ref=e41]:
+    - heading "Who is working this station?" [level=2] [ref=e42]
+    - paragraph [ref=e43]: Pick your name, then enter your PIN.
+    - generic [ref=e44]:
+      - button "A. Spiezia Business Support · PIN 1234" [ref=e45] [cursor=pointer]:
+        - generic [ref=e46]: A. Spiezia
+        - generic [ref=e47]: Business Support · PIN 1234
+      - button "M. de Vries Business Support · PIN 1111" [ref=e48] [cursor=pointer]:
+        - generic [ref=e49]: M. de Vries
+        - generic [ref=e50]: Business Support · PIN 1111
+      - button "J. Kowalski Packing · PIN 2222" [ref=e51] [cursor=pointer]:
+        - generic [ref=e52]: J. Kowalski
+        - generic [ref=e53]: Packing · PIN 2222
+      - button "R. Bakker Packing · PIN 3333" [ref=e54] [cursor=pointer]:
+        - generic [ref=e55]: R. Bakker
+        - generic [ref=e56]: Packing · PIN 3333
+      - button "S. Yilmaz Outbound / Docks · PIN 4444" [ref=e57] [cursor=pointer]:
+        - generic [ref=e58]: S. Yilmaz
+        - generic [ref=e59]: Outbound / Docks · PIN 4444
+      - button "L. Janssen Outbound / Docks · PIN 5555" [ref=e60] [cursor=pointer]:
+        - generic [ref=e61]: L. Janssen
+        - generic [ref=e62]: Outbound / Docks · PIN 5555
+      - button "P. Hendriks Team Leader · PIN 9999" [ref=e63] [cursor=pointer]:
+        - generic [ref=e64]: P. Hendriks
+        - generic [ref=e65]: Team Leader · PIN 9999
+    - generic [ref=e66]:
+      - textbox "PIN" [ref=e67]:
+        - /placeholder: ••••
+      - button "Start shift" [ref=e68] [cursor=pointer]
+    - alert [ref=e69]
+    - paragraph [ref=e70]: Demo PINs are printed on each name so anyone can try any role. A real installation would use your Windows account instead.
