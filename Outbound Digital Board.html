@@ -399,6 +399,14 @@ main{flex:1;min-height:0;position:relative}
 .dcard > header .nm{font-weight:600}
 .dcard > header .ds{color:var(--ink-2);font-size:.84em;margin-top:2px;line-height:1.4}
 .dcard .bd{padding:12px 14px}
+.dwide{grid-column:1/-1}
+.pbar{display:flex;height:22px;border:1px solid var(--rule);background:var(--board-2);overflow:hidden}
+.pbar i{display:block;height:100%}
+.plegend{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:.9em;color:var(--ink-2)}
+.plegend b{color:var(--ink);font-weight:600}
+.plegend span::before{content:"";display:inline-block;width:10px;height:10px;margin-right:6px;background:var(--c);border:1px solid rgba(0,0,0,.25)}
+.nxt{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.nxt .pill{display:inline-flex;gap:6px;align-items:center}
 .hbars{display:flex;align-items:flex-end;gap:3px;height:150px}
 .hbars .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;font-size:.8em;color:var(--ink-2)}
 .hbars .col i{display:block;width:100%;background:var(--chrome);min-height:2px}
@@ -2228,7 +2236,24 @@ function renderDash(){
   const bar = (v, max, extra) => `<span class="dbar"><i style="width:${Math.round(v / max * 100)}%"></i>${extra || ''}</span>`;
   const card = (nm, ds_, body) => `<section class="dcard"><header><div class="nm">${nm}</div><div class="ds">${ds_}</div></header><div class="bd">${body}</div></section>`;
 
+  /* the day's deliveries: registered today, loaded today, or still on the board */
+  const day = ds.filter(d => today(d.createdAt) || (d.loadedAt && today(d.loadedAt)) || STATUS_IDS.includes(d.status));
+  const seg = [
+    { n:'Loaded',          c:'var(--ok)',     l:day.filter(d => d.status === LOADED || d.status === CLOSED) },
+    { n:'Pick up today',   c:'var(--chrome)', l:day.filter(d => d.status === 'today') },
+    { n:'Pick up next day',c:'var(--accent)', l:day.filter(d => d.status === 'next_day') },
+    { n:'In process',      c:'var(--rule)',   l:day.filter(d => !['today', 'next_day', LOADED, CLOSED].includes(d.status)) }
+  ];
+  const nextDay = seg[2].l;
+  const total = Math.max(1, day.length);
+  const progress = card('Deliveries of the day', `${seg[0].l.length} of ${day.length} loaded &middot; ${Math.round(seg[0].l.length / total * 100)}%`,
+    `<div class="pbar" role="img" aria-label="Deliveries of the day by status">${seg.map(x => `<i style="width:${x.l.length / total * 100}%;background:${x.c}" title="${esc(x.n)}: ${x.l.length}"></i>`).join('')}</div>
+     <div class="plegend">${seg.map(x => `<span style="--c:${x.c}">${esc(x.n)} <b>${x.l.length}</b></span>`).join('')}</div>
+     <div class="nxt"><b>Pick up next day:</b> ${nextDay.length ? nextDay.map(d => { const c = DEST_BY_ID[d.country]; return `<span class="pill warn">${flagSVG(destFlag(c), 13, c.n)} ${esc(d.no)} &middot; ${d.picks} pallet${d.picks === 1 ? '' : 's'}</span>`; }).join('') : '<span class="help">none</span>'}</div>`
+  ).replace('class="dcard"', 'class="dcard dwide"');
+
   $('#dashGrid').innerHTML = [
+    progress,
     card('Activity by hour', 'Status changes per hour, 06:00 to 22:00. Current hour in amber.',
       `<div class="hbars">${perHour.map(x => `<div class="col${x.h === nowH ? ' now' : ''}"><b>${x.n}</b><i style="height:${Math.round(x.n / maxH * 100)}px"></i>${String(x.h).padStart(2, '0')}</div>`).join('')}</div>`),
     card('Time in each stage', 'Average for stages finished today. The amber tick is the target time.',
