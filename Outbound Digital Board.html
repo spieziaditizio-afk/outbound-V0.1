@@ -364,7 +364,7 @@ main{flex:1;min-height:0;position:relative}
 .stockcard > header{padding:12px 14px;border-bottom:1px solid var(--rule-soft)}
 .stockcard > header .nm{font-weight:600}
 .stockcard > header .ds{color:var(--ink-2);font-size:.84em;margin-top:2px;line-height:1.4}
-.stockrow{display:grid;grid-template-columns:34px 1fr 96px;gap:11px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--rule-soft)}
+.stockrow{display:grid;grid-template-columns:34px 1fr 104px;gap:11px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--rule-soft)}
 .stockrow:last-child{border-bottom:0}
 .stockrow .cname{display:block;font-size:.92em;margin-bottom:4px}
 .bar{display:block;height:12px;background:var(--board-2);border:1px solid var(--rule-soft);position:relative;overflow:hidden}
@@ -372,6 +372,23 @@ main{flex:1;min-height:0;position:relative}
 .stockrow .num{text-align:right;font-size:.88em;color:var(--ink-2)}
 .stockrow .num b{color:var(--ink);font-weight:600}
 .stockrow.out .num b{color:var(--alert)}
+
+/* ============================================================
+   TRUCKS
+   ============================================================ */
+.trucks{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:var(--gap);align-items:start}
+.truck{background:var(--tile);border:1px solid var(--rule);border-radius:2px}
+.truck > header{padding:12px 14px;border-bottom:1px solid var(--rule-soft);display:flex;gap:10px;align-items:flex-start}
+.truck .plate{font-weight:600;font-size:1.1em;letter-spacing:.02em}
+.truck .sub{color:var(--ink-2);font-size:.86em;margin-top:2px;line-height:1.45}
+.truck .sp{flex:1}
+.truck .load{padding:10px 14px;border-bottom:1px solid var(--rule-soft)}
+.truck .load h4{font-size:.9em;margin-bottom:6px}
+.truck .dl{display:grid;grid-template-columns:1fr auto auto;gap:4px 12px;font-size:.9em;align-items:center}
+.truck .dl .no{font-weight:600}
+.truck > footer{padding:9px 14px;display:flex;gap:10px;align-items:center;color:var(--ink-2);font-size:.88em}
+.ldrow{display:grid;grid-template-columns:1fr 90px 30px;gap:8px;margin-bottom:6px}
+.ldbox{border:1px solid var(--rule-soft);padding:10px;margin-bottom:10px;background:var(--board)}
 
 /* ============================================================
    TABLES (returns / audit)
@@ -506,6 +523,7 @@ html[data-mode="tv"] .kpi b{font-size:26px}
       <button data-view="board" aria-current="true">Board</button>
       <button data-view="cones">Cone stock</button>
       <button data-view="returns">Cone returns</button>
+      <button data-view="trucks">Trucks</button>
       <button data-view="log">Activity</button>
     </nav>
     <div class="spacer"></div>
@@ -563,6 +581,26 @@ html[data-mode="tv"] .kpi b{font-size:26px}
           </div>
         </div>
         <div id="returnsWrap"></div>
+      </div>
+    </section>
+
+    <!-- ---------- TRUCKS ---------- -->
+    <section class="view hidden" id="viewTrucks">
+      <div class="pad">
+        <div class="vhead">
+          <div>
+            <h2>Trucks</h2>
+            <p>Trucks coming to load. Each truck takes one or more Load IDs, each Load ID carries one or more deliveries. The status of every delivery comes straight from the board.</p>
+          </div>
+          <div class="sp"></div>
+          <div class="board-filter" id="truckFilter" style="margin:0">
+            <button data-f="all" aria-current="true">All</button>
+            <button data-f="EU">Europe</button>
+            <button data-f="EXPORT">Export</button>
+          </div>
+          <button class="btn btn-sm btn-accent" id="btnTruck">Add truck</button>
+        </div>
+        <div id="trucksWrap"></div>
       </div>
     </section>
 
@@ -640,10 +678,10 @@ const LOADED = 'loaded';   /* on the truck, cones not back yet */
 const CLOSED = 'closed';   /* cones returned, stock released   */
 
 const ROLES = {
-  business_support:{ name:'Business Support', move:'all',                                  create:true,  ret:true  },
-  packing:         { name:'Packing',          move:['picking','pick_dropped','packing','strap'], create:false, ret:false },
-  outbound:        { name:'Outbound / Docks', move:['strap','next_day','today',LOADED],    create:false, ret:true  },
-  team_leader:     { name:'Team Leader',      move:'all',                                  create:true,  ret:true  }
+  business_support:{ name:'Business Support', move:'all',                                  create:true,  ret:true,  trucks:true },
+  packing:         { name:'Packing',          move:['picking','pick_dropped','packing','strap'], create:false, ret:false, trucks:false },
+  outbound:        { name:'Outbound / Docks', move:['strap','next_day','today',LOADED],    create:false, ret:true,  trucks:true },
+  team_leader:     { name:'Team Leader',      move:'all',                                  create:true,  ret:true,  trucks:true }
 };
 
 const USERS = [
@@ -865,7 +903,7 @@ let openDeliveryId = null;
 let tvMode = false;
 
 function blankState(){
-  return { v:1, seq:0, deliveries:[], log:[], lost:{ cone:{}, disc:{}, hex:{} }, seeded:false };
+  return { v:1, seq:0, deliveries:[], log:[], lost:{ cone:{}, disc:{}, hex:{} }, adj:{ cone:{}, disc:{}, hex:{} }, trucks:[], seeded:false };
 }
 function save(){
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* private mode */ }
@@ -966,7 +1004,8 @@ function paintPeers(){
    6. INVENTORY MATH
    ============================================================ */
 function totalOf(type, color){
-  return (STOCK[type].counts[color] || 0) - ((state.lost[type] && state.lost[type][color]) || 0);
+  return (STOCK[type].counts[color] || 0) + ((state.adj && state.adj[type] && state.adj[type][color]) || 0)
+       - ((state.lost[type] && state.lost[type][color]) || 0);
 }
 function reservations(){
   const r = { cone:{}, disc:{}, hex:{} };
@@ -1224,6 +1263,41 @@ function consolidatePallets(id, finalCount){
   return { ok:true, freed };
 }
 
+/* Stock correction: lost cones, or a new delivery of cones. The rack total
+   is set to what was counted; the difference is kept as state.adj on top of
+   the base STOCK counts. Never below what is out on the floor. */
+function setStockTotal(type, color, total){
+  if (!ROLES[me.role].ret) return { ok:false, reason:`${ROLES[me.role].name} cannot change the cone stock.` };
+  const out = (reservations()[type] || {})[color] || 0;
+  if (!Number.isInteger(total) || total < out) return { ok:false, reason:`${out} are out on the floor, so the total cannot be below ${out}.` };
+  const before = totalOf(type, color);
+  if (total === before) return { ok:true };
+  state.adj = state.adj || { cone:{}, disc:{}, hex:{} };
+  state.adj[type][color] = (state.adj[type][color] || 0) + total - before;
+  logEvent('stock', `Stock ${piecePlural({ type, color }).toLowerCase()}: ${before} \u2192 ${total} (${total > before ? '+' : ''}${total - before})`, '');
+  save();
+  return { ok:true };
+}
+
+/* Trucks: { id, plate, trailer, driver, carrier, region, loads:[{ id, rows:[{ no, pallets }] }] } */
+const CARRIERS = ['ATC', 'Expeditor', 'DSV'];
+function addTruck(t){
+  if (!ROLES[me.role].trucks) return { ok:false, reason:`${ROLES[me.role].name} cannot manage trucks.` };
+  t.id = 't' + (++state.seq);
+  (state.trucks = state.trucks || []).push(t);
+  logEvent('truck', `Truck ${t.plate} (${t.carrier}) added \u2014 ${t.loads.map(l => l.id).join(', ')}`, '');
+  save();
+  return { ok:true };
+}
+function removeTruck(id){
+  const t = (state.trucks || []).find(x => x.id === id);
+  if (!t || !ROLES[me.role].trucks) return { ok:false };
+  state.trucks = state.trucks.filter(x => x !== t);
+  logEvent('truck', `Truck ${t.plate} (${t.carrier}) left`, '');
+  save();
+  return { ok:true };
+}
+
 /* ============================================================
    9. SEED — a believable shift, built through the real engine
    ============================================================ */
@@ -1282,6 +1356,11 @@ function seed(){
       if (status === LOADED) d.loadedAt = cur;
     }
   }
+  const T = (plate, trailer, driver, carrier, region, loads) => state.trucks.push({ id:'t' + (++state.seq), plate, trailer, driver, carrier, region,
+    loads: loads.map(([id, ...nos]) => ({ id, rows: nos.map(no => ({ no, pallets: (state.deliveries.find(d => d.no === no) || { picks:1 }).picks })) })) });
+  T('45-BKL-7', 'O-12-RTV', 'Jan de Boer', 'DSV', 'EU', [['L-550231', '80412771', '80412942'], ['L-550236', '80412968']]);
+  T('WX 4821K', 'WZ 7730A', 'Tomasz Wi\u015bniewski', 'ATC', 'EXPORT', [['L-550240', '80412783', '80412923']]);
+  T('B-TK 5512', 'B-PL 9042', 'Marek Kov\u00e1\u010d', 'Expeditor', 'EXPORT', [['L-550244', '80412790', '80412936'], ['L-550247', '80412955']]);
   state.log = [];
   state.log.push({ at:now(), by:'system', byName:'System', kind:'seed',
                    text:`Demo data loaded — ${state.deliveries.length} deliveries across the board`, deliveryNo:'' });
@@ -1300,6 +1379,7 @@ function renderAll(){
   renderBoard();
   renderCones();
   renderReturns();
+  renderTrucks();
   renderLog();
   renderDrawer();
 }
@@ -1837,7 +1917,7 @@ function renderCones(){
           <span class="cname">${esc(COLOR_NAME[color])}${lost ? ` <span class="pill bad">${lost} lost</span>` : ''}</span>
           <span class="bar"><i style="width:${w}%;background:${COLOR_HEX[color]};opacity:.85"></i></span>
         </span>
-        <span class="num"><b>${free}</b> free / ${tot}</span>
+        <span class="num"><b>${free}</b> free / ${tot}${ROLES[me.role].ret ? `<br><button class="btn btn-sm btn-quiet adj" data-adj="${type}:${color}">Adjust</button>` : ''}</span>
       </div>`;
     }).join('');
     return `<section class="stockcard">
@@ -1845,6 +1925,176 @@ function renderCones(){
       ${rows}
     </section>`;
   }).join('');
+  $$('#stockGrid [data-adj]').forEach(b => b.addEventListener('click', () => stockModal(...b.dataset.adj.split(':'))));
+}
+
+function stockModal(type, color){
+  const p = { type, color };
+  const out = (reservations()[type] || {})[color] || 0;
+  const cur = totalOf(type, color);
+  openModal(`<div class="modal" role="dialog" aria-modal="true" aria-label="Adjust stock">
+    <div class="md-head">
+      ${markerSVG(type === 'cone' ? { cone:color, topper:null } : { cone:null, topper:type, topperColor:color }, 54)}
+      <div style="flex:1"><h2>Adjust ${esc(piecePlural(p).toLowerCase())}</h2>
+      <p>Type the total you have: on the rack plus out on the floor. Lower it for lost pieces, raise it when new ones arrive.</p></div>
+      <button class="btn btn-quiet" id="skX" aria-label="Close">&times;</button>
+    </div>
+    <div class="md-body">
+      <div class="field" id="fSk">
+        <label for="skTotal">Total pieces</label>
+        <input id="skTotal" type="number" min="${out}" value="${cur}">
+        <p class="help">Now ${cur} in total, ${out} out on the floor.</p>
+        <div class="err" id="skErr"></div>
+      </div>
+    </div>
+    <div class="md-foot">
+      <div class="sp"></div>
+      <button class="btn" id="skCancel">Cancel</button>
+      <button class="btn btn-accent" id="skGo">Save</button>
+    </div>
+  </div>`);
+  $('#skX').addEventListener('click', closeModal);
+  $('#skCancel').addEventListener('click', closeModal);
+  $('#skGo').addEventListener('click', () => {
+    const r = setStockTotal(type, color, parseInt($('#skTotal').value, 10));
+    if (!r.ok) { $('#skErr').textContent = r.reason; $('#fSk').classList.add('bad'); return; }
+    closeModal(); renderAll();
+    toast(`${piecePlural(p)} total is now ${totalOf(type, color)}.`, 'good');
+  });
+}
+
+/* ============================================================
+   15b. RENDER — trucks
+   ============================================================ */
+let truckFilter = 'all';
+
+function deliveryStatus(no){
+  const d = state.deliveries.find(x => x.no === no && x.status !== CLOSED);
+  if (!d) return { text:'Not on board', cls:'' };
+  if (d.status === LOADED) return { text:'Loaded', cls:'ok' };
+  return { text:STATUS_BY_ID[d.status].name, cls: d.status === 'today' ? 'ok' : d.status === 'next_day' ? 'warn' : '' };
+}
+
+function renderTrucks(){
+  const all = state.trucks || [];
+  $$('#truckFilter button').forEach(b => b.setAttribute('aria-current', String(b.dataset.f === truckFilter)));
+  $('#btnTruck').classList.toggle('hidden', !ROLES[me.role].trucks);
+  const list = all.filter(t => truckFilter === 'all' || t.region === truckFilter);
+  if (!list.length) {
+    $('#trucksWrap').innerHTML = `<div class="empty"><b>No trucks</b>${all.length ? 'None for this destination.' : 'Add a truck when a carrier announces one.'}</div>`;
+    return;
+  }
+  $('#trucksWrap').innerHTML = `<div class="trucks">${list.map(t => {
+    const rows = t.loads.flatMap(l => l.rows);
+    const pallets = rows.reduce((s, r) => s + r.pallets, 0);
+    const ready = rows.filter(r => deliveryStatus(r.no).cls === 'ok').length;
+    return `<article class="truck">
+      <header>
+        <div>
+          <div class="plate">${esc(t.plate)} <span class="sub">/ trailer ${esc(t.trailer)}</span></div>
+          <div class="sub">Driver ${esc(t.driver)}</div>
+        </div>
+        <span class="sp"></span>
+        <span class="pill">${esc(t.carrier)}</span>
+        <span class="pill ${t.region === 'EU' ? '' : 'warn'}">${t.region === 'EU' ? 'EUR' : 'Export'}</span>
+      </header>
+      ${t.loads.map(l => `<div class="load">
+        <h4>Load ID ${esc(l.id)}</h4>
+        <div class="dl">${l.rows.map(r => {
+          const st = deliveryStatus(r.no);
+          return `<span class="no">${esc(r.no)}</span><span>${r.pallets} pallet${r.pallets === 1 ? '' : 's'}</span><span class="pill ${st.cls}">${esc(st.text)}</span>`;
+        }).join('')}</div>
+      </div>`).join('')}
+      <footer>
+        <span>${t.loads.length} load${t.loads.length === 1 ? '' : 's'} &middot; ${rows.length} deliver${rows.length === 1 ? 'y' : 'ies'} &middot; ${pallets} pallets &middot; ${ready}/${rows.length} ready</span>
+        <span class="sp"></span>
+        ${ROLES[me.role].trucks ? `<button class="btn btn-sm" data-leave="${t.id}">Truck left</button>` : ''}
+      </footer>
+    </article>`;
+  }).join('')}</div>`;
+  $$('#trucksWrap [data-leave]').forEach(b => b.addEventListener('click', () => {
+    if (!confirm('Remove this truck from the list?')) return;
+    removeTruck(b.dataset.leave); renderAll();
+  }));
+}
+
+function truckModal(){
+  if (!ROLES[me.role].trucks) { toast(`${ROLES[me.role].name} cannot manage trucks.`, 'bad'); return; }
+  let loads = [{ id:'', rows:[{ no:'', pallets:'' }] }];
+  const nos = state.deliveries.filter(d => d.status !== CLOSED).map(d => `<option value="${esc(d.no)}">`).join('');
+  const readLoads = () => {
+    loads = $$('#tkLoads .ldbox').map(box => ({
+      id: $('.ldid', box).value.trim(),
+      rows: $$('.ldrow', box).map(r => ({ no: $('.ldno', r).value.trim(), pallets: $('.ldpl', r).value }))
+    }));
+  };
+  const paint = () => {
+    $('#tkLoads').innerHTML = loads.map((l, i) => `<div class="ldbox">
+      <div class="field" style="margin-bottom:8px"><label>Load ID</label><input class="ldid" value="${esc(l.id)}" placeholder="L-550231"></div>
+      ${l.rows.map((r, j) => `<div class="ldrow">
+        <input class="ldno" list="tkNos" placeholder="Delivery #" value="${esc(r.no)}">
+        <input class="ldpl" type="number" min="1" placeholder="Pallets" value="${esc(r.pallets)}">
+        <button class="btn btn-sm btn-quiet" data-rm="${i}:${j}" aria-label="Remove delivery">&times;</button>
+      </div>`).join('')}
+      <button class="btn btn-sm" data-addrow="${i}">+ Delivery</button>
+      ${loads.length > 1 ? `<button class="btn btn-sm btn-quiet" data-rmload="${i}">Remove load</button>` : ''}
+    </div>`).join('');
+  };
+  openModal(`<div class="modal wide" role="dialog" aria-modal="true" aria-label="Add truck">
+    <div class="md-head">
+      <div style="flex:1"><h2>Add a truck</h2><p>One truck can take several Load IDs; each Load ID holds one or more deliveries.</p></div>
+      <button class="btn btn-quiet" id="tkX" aria-label="Close">&times;</button>
+    </div>
+    <div class="md-body">
+      <datalist id="tkNos">${nos}</datalist>
+      <div class="row2">
+        <div class="field"><label for="tkPlate">Truck plate</label><input id="tkPlate"></div>
+        <div class="field"><label for="tkTrailer">Trailer plate</label><input id="tkTrailer"></div>
+      </div>
+      <div class="field"><label for="tkDriver">Driver name</label><input id="tkDriver"></div>
+      <div class="row2">
+        <div class="field"><label for="tkCarrier">Carrier</label><select id="tkCarrier">${CARRIERS.map(c => `<option>${c}</option>`).join('')}</select></div>
+        <div class="field"><label for="tkRegion">Destination</label><select id="tkRegion"><option value="EU">EUR</option><option value="EXPORT">Export</option></select></div>
+      </div>
+      <div id="tkLoads"></div>
+      <button class="btn btn-sm" id="tkAddLoad">+ Load ID</button>
+      <div id="tkErr" role="alert" style="color:var(--alert);margin-top:10px"></div>
+    </div>
+    <div class="md-foot">
+      <div class="sp"></div>
+      <button class="btn" id="tkCancel">Cancel</button>
+      <button class="btn btn-accent" id="tkSave">Add truck</button>
+    </div>
+  </div>`);
+  paint();
+  $('#tkX').addEventListener('click', closeModal);
+  $('#tkCancel').addEventListener('click', closeModal);
+  $('#tkAddLoad').addEventListener('click', () => { readLoads(); loads.push({ id:'', rows:[{ no:'', pallets:'' }] }); paint(); });
+  $('#tkLoads').addEventListener('click', ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    readLoads();
+    if (b.dataset.addrow) loads[+b.dataset.addrow].rows.push({ no:'', pallets:'' });
+    else if (b.dataset.rmload) loads.splice(+b.dataset.rmload, 1);
+    else if (b.dataset.rm) { const [i, j] = b.dataset.rm.split(':').map(Number); loads[i].rows.splice(j, 1); if (!loads[i].rows.length) loads[i].rows.push({ no:'', pallets:'' }); }
+    paint();
+  });
+  $('#tkSave').addEventListener('click', () => {
+    readLoads();
+    const t = { plate:$('#tkPlate').value.trim(), trailer:$('#tkTrailer').value.trim(), driver:$('#tkDriver').value.trim(),
+                carrier:$('#tkCarrier').value, region:$('#tkRegion').value,
+                loads: loads.map(l => ({ id:l.id, rows:l.rows.map(r => ({ no:r.no, pallets:parseInt(r.pallets, 10) })) })) };
+    const taken = new Set((state.trucks || []).flatMap(x => x.loads.map(l => l.id)));
+    let err = '';
+    if (!t.plate || !t.trailer || !t.driver) err = 'Enter the truck plate, trailer plate and driver name.';
+    else if (t.loads.some(l => !l.id)) err = 'Every load needs a Load ID.';
+    else if (new Set(t.loads.map(l => l.id)).size < t.loads.length || t.loads.some(l => taken.has(l.id))) err = 'A Load ID is already on a truck.';
+    else if (t.loads.some(l => l.rows.some(r => !r.no || !(r.pallets >= 1)))) err = 'Every delivery needs a number and at least 1 pallet.';
+    if (err) { $('#tkErr').textContent = err; return; }
+    const r = addTruck(t);
+    if (!r.ok) { $('#tkErr').textContent = r.reason; return; }
+    closeModal(); renderAll();
+    toast(`Truck ${t.plate} added.`, 'good');
+  });
 }
 
 /* ============================================================
@@ -1951,7 +2201,7 @@ function signOut(){
 function setView(v){
   view = v;
   $$('#nav button').forEach(b => b.setAttribute('aria-current', String(b.dataset.view === v)));
-  const map = { board:'#viewBoard', cones:'#viewCones', returns:'#viewReturns', log:'#viewLog' };
+  const map = { board:'#viewBoard', cones:'#viewCones', returns:'#viewReturns', trucks:'#viewTrucks', log:'#viewLog' };
   Object.keys(map).forEach(k => $(map[k]).classList.toggle('hidden', k !== v));
 }
 
@@ -2010,6 +2260,11 @@ function boot(){
   $('#dqOperator').addEventListener('change', ev => { operatorFilter = ev.target.value; renderBoard(); });
   $('#dqLate').addEventListener('change', ev => { lateOnly = ev.target.checked; renderBoard(); });
   $('#btnNew').addEventListener('click', newDeliveryModal);
+  $('#btnTruck').addEventListener('click', truckModal);
+  $('#truckFilter').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-f]');
+    if (b) { truckFilter = b.dataset.f; renderTrucks(); }
+  });
   $('#btnScreen').addEventListener('click', openSecondScreen);
   $('#btnTv').addEventListener('click', () => setTv(!tvMode));
   $('#btnOut').addEventListener('click', signOut);

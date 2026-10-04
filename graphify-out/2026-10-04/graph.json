@@ -1985,7 +1985,7 @@
       "node_kind": "heading",
       "norm_label": "graphify",
       "source_file": "CLAUDE.md",
-      "source_location": "L42"
+      "source_location": "L44"
     },
     {
       "id": "claude_what_this_is",
@@ -2222,7 +2222,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L42",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -3913,5 +3913,5 @@
       "source_file": "VNA operator.jpg"
     }
   ],
-  "built_at_commit": "f94d2dbcf0819eda74cf68ea1810177e85fe6f05"
+  "built_at_commit": "f428c88902f4f2eb0f350435cff22362fe3d45be"
 }

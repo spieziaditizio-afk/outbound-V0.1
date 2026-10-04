@@ -1973,7 +1973,7 @@
       "node_kind": "heading",
       "norm_label": "delivery status pipeline",
       "source_file": "CLAUDE.md",
-      "source_location": "L32"
+      "source_location": "L33"
     },
     {
       "id": "claude_graphify",
@@ -1985,7 +1985,7 @@
       "node_kind": "heading",
       "norm_label": "graphify",
       "source_file": "CLAUDE.md",
-      "source_location": "L44"
+      "source_location": "L45"
     },
     {
       "id": "claude_what_this_is",
@@ -2200,7 +2200,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L32",
+      "source_location": "L33",
       "weight": 1.0
     },
     {
@@ -2222,7 +2222,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L44",
+      "source_location": "L45",
       "weight": 1.0
     },
     {
@@ -3913,5 +3913,5 @@
       "source_file": "VNA operator.jpg"
     }
   ],
-  "built_at_commit": "f428c88902f4f2eb0f350435cff22362fe3d45be"
+  "built_at_commit": "88c821342d94b3c986de68699372214fe27b7090"
 }

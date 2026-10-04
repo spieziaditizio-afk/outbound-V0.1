@@ -161,7 +161,7 @@ h2.act-title{
 }
 
 /* ---------- act 3: value grid ---------- */
-.value-grid{margin-top:44px; display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--chrome-rule); border:1px solid var(--chrome-rule)}
+.value-grid{margin-top:44px; display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--chrome-rule); border:1px solid var(--chrome-rule)}
 .value-card{background:var(--chrome); padding:26px 22px; min-height:168px; display:flex; flex-direction:column; gap:10px}
 .value-card .ic{width:30px; height:30px; color:var(--accent)}
 .value-card h4{font-family:var(--display); font-weight:600; font-size:17px; color:#fff; line-height:1.25}
@@ -205,6 +205,9 @@ h2.act-title{
 .closing .filenote{margin-top:26px; font-size:13.5px; color:var(--chrome-dim); max-width:58ch; line-height:1.6}
 .closing .filenote code{background:var(--chrome-2); border:1px solid var(--chrome-rule); border-radius:2px; padding:2px 6px; font-size:12.5px; color:#DDE3E8}
 
+@media (max-width:980px){
+  .value-grid{grid-template-columns:1fr 1fr 1fr}
+}
 @media (max-width:760px){
   .today-grid{grid-template-columns:1fr}
   .value-grid{grid-template-columns:1fr 1fr}
@@ -366,7 +369,7 @@ h2.act-title{
   <section class="act act-dark">
     <div class="wrap">
       <div class="eyebrow">03 &mdash; Beyond replicating the whiteboard</div>
-      <h2 class="act-title">Six things the physical board could never do</h2>
+      <h2 class="act-title">Eight things the physical board could never do</h2>
       <p class="lede">It's not just digitizing the card — the system solves problems that today aren't even attempted.</p>
     </div>
 
@@ -402,6 +405,16 @@ h2.act-title{
           <h4>Live cone stock</h4>
           <p>How many cones, discs and hexes are free and in use in each color, at every moment — no counting by hand on the rack.</p>
         </div>
+        <div class="value-card">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h16M12 4v16"/><circle cx="12" cy="12" r="9"/></svg>
+          <h4>Stock you can correct</h4>
+          <p>Lost a few cones, or a new box arrived? Anyone with return rights sets the new total in a few clicks, and the change lands in the activity log.</p>
+        </div>
+        <div class="value-card">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 7h12v9H2zM14 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
+          <h4>Trucks screen</h4>
+          <p>Every truck coming to load: plates, driver, carrier (ATC, Expeditor, DSV), Europe or Export, its Load IDs, and the deliveries and pallets in each — with each delivery's live status from the board.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -412,15 +425,23 @@ h2.act-title{
   <section class="act act-light">
     <div class="wrap">
       <div class="eyebrow">04 &mdash; Real-time status</div>
-      <h2 class="act-title">Statuses that update on their own, every minute</h2>
-      <p class="lede">Today someone has to move each card by hand. The board can also read a small CSV file exported by the warehouse system (WMS) every minute and move the deliveries automatically &mdash; so what you see on screen is what the system already knows.</p>
+      <h2 class="act-title">The WMS moves the card, so nobody has to</h2>
+      <p class="lede">The goal: the VNA operator no longer swipes the card when finishing a pick or a drop. The board can read a small CSV exported by the warehouse system (WMS) every minute and move the deliveries by itself &mdash; what you see on screen is what the system already knows.</p>
 
       <div class="req-groups">
+        <div class="req-group">
+          <div class="gtitle">What the WMS would update<span>Automatic status changes</span></div>
+          <ul class="req-list">
+            <li><span class="chk"></span><span><b>Picking</b> and <b>Pick dropped</b> &mdash; the VNA operator just works in the WMS; no card to drag.</span></li>
+            <li><span class="chk"></span><span><b>Packing</b>, <b>Strap and sealing</b> and <b>Pick up next day</b> &mdash; as packing completes each step in the WMS.</span></li>
+            <li><span class="chk"></span><span>The other steps (registering the delivery, loading, cone return) stay manual for now. Manual moves also remain as a fallback if the file is late.</span></li>
+          </ul>
+        </div>
         <div class="req-group">
           <div class="gtitle">Columns the board needs<span>Operational data only</span></div>
           <ul class="req-list">
             <li><span class="chk"></span><span><b>Delivery number</b> &mdash; the key that matches each row to its card.</span></li>
-            <li><span class="chk"></span><span><b>Status</b> &mdash; the WMS status code, mapped to the 7 board columns.</span></li>
+            <li><span class="chk"></span><span><b>Status</b> &mdash; the WMS status code, mapped to the board columns.</span></li>
             <li><span class="chk"></span><span><b>Status timestamp</b> &mdash; when it last changed, to drive the time-in-status alerts.</span></li>
             <li><span class="chk"></span><span><b>Destination country code</b> &mdash; flag and Europe / Export filter.</span></li>
             <li><span class="chk"></span><span><b>Pick labels and pallet count</b> &mdash; sizes the marker and the cone stock.</span></li>
@@ -434,11 +455,10 @@ h2.act-title{
           </ul>
         </div>
         <div class="req-group">
-          <div class="gtitle">How it behaves<span>Same board, fed automatically</span></div>
+          <div class="gtitle">What the team gets<span>Decisions from the screen</span></div>
           <ul class="req-list">
-            <li><span class="chk"></span><span>The file is read every minute; a new or changed row creates or moves the card, and the change is written to the history as coming from the WMS.</span></li>
-            <li><span class="chk"></span><span>Manual moves stay available as a fallback if the file is late.</span></li>
-            <li><span class="chk"></span><span>The team leader decides from the screen &mdash; late, stuck or priority deliveries show up without anyone walking to the board.</span></li>
+            <li><span class="chk"></span><span>Every change is written to the history as coming from the WMS, with its time.</span></li>
+            <li><span class="chk"></span><span>The team leader sees late, stuck or priority deliveries without walking to the board &mdash; and the Trucks screen shows which deliveries are ready for each Load ID.</span></li>
           </ul>
         </div>
       </div>

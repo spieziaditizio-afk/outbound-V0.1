@@ -1,0 +1,213 @@
+- generic [ref=f1e2]:
+  - banner [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - text: Special Operations Area
+        - generic [ref=f1e6]: ·
+        - text: Sevenum — proposal for
+        - generic [ref=f1e7]: Supervisor
+        - text: "&"
+        - generic [ref=f1e8]: IT
+      - heading [level=1] [ref=f1e9]:
+        - text: From the magnetic whiteboard to a live
+        - emphasis [ref=f1e10]: Control Tower
+      - paragraph [ref=f1e11]: A walkthrough of how delivery tracking works today, what we built to put it on screen, and what we need from IT to run it on the warehouse floor — not just in a demo.
+      - generic [ref=f1e12]:
+        - generic [ref=f1e13]: 7 statuses · same as today
+        - generic [ref=f1e14]: 16 destinations with flags
+        - generic [ref=f1e15]: Cone marker allocation engine
+      - generic [ref=f1e16]: Scroll to follow the walkthrough
+  - generic [ref=f1e20]:
+    - generic [ref=f1e21]: 01 — How it works today
+    - heading "One magnetic card per delivery, moved by hand through every status" [level=2] [ref=f1e22]
+    - paragraph [ref=f1e23]: This is the process right now, before touching a single screen.
+    - generic [ref=f1e24]:
+      - generic [ref=f1e25]:
+        - paragraph [ref=f1e26]: "Business Support prints the pick labels for each delivery: the locations and piece quantities that VNA operators need to pick from the racks. A delivery can carry one or several pick labels."
+        - paragraph [ref=f1e27]: Along with the pick labels, they place a magnetic card on the whiteboard with the delivery number and pick count. That card starts in the Allocated column.
+        - paragraph [ref=f1e28]: "From there, every actor who completes their part of the process moves the card to the next column: Picking → Pick dropped → Packing → Strap and sealing → Pick up next day / Pick up today."
+        - paragraph [ref=f1e29]: The Team Leader keeps the board under constant observation — it's the only real-time source of status that exists today.
+      - generic [ref=f1e30]:
+        - generic [ref=f1e31]: Physical whiteboard — 7 columns
+        - generic [ref=f1e32]:
+          - generic [ref=f1e36]: "80412771"
+          - generic [ref=f1e37]: 8 pick labels · Allocated
+        - generic [ref=f1e38]:
+          - heading "What the board can't give you" [level=4] [ref=f1e39]
+          - list [ref=f1e40]:
+            - listitem [ref=f1e41]: — No one sees the status without standing in front of it
+            - listitem [ref=f1e42]: — No record of who moved which card, or when
+            - listitem [ref=f1e43]: — A stuck delivery doesn't raise a flag — someone has to notice it by eye
+            - listitem [ref=f1e44]: — Each delivery's marker (cone/color) is decided separately, and never documented
+  - generic [ref=f1e46]:
+    - generic [ref=f1e47]:
+      - generic [ref=f1e48]: "02 — The demo: Outbound Control Tower"
+      - heading "The same 7 columns. The same card. Now live." [level=2] [ref=f1e49]
+      - paragraph [ref=f1e50]: "Nothing about the process changes — the pipeline is identical. What changes is that the card now lives on screen, moves by dragging it, and never loses its trail. Scroll: the card below travels the same board."
+    - generic [ref=f1e51]:
+      - generic [ref=f1e53]:
+        - generic [ref=f1e55]:
+          - generic [ref=f1e56]: "01"
+          - generic [ref=f1e57]: Allocated
+        - generic [ref=f1e59]:
+          - generic [ref=f1e60]: "02"
+          - generic [ref=f1e61]: Picking
+        - generic [ref=f1e63]:
+          - generic [ref=f1e64]: "03"
+          - generic [ref=f1e65]: Pick dropped
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: "04"
+          - generic [ref=f1e69]: Packing
+        - generic [ref=f1e71]:
+          - generic [ref=f1e72]: "05"
+          - generic [ref=f1e73]: Strap & seal
+        - generic [ref=f1e75]:
+          - generic [ref=f1e76]: "06"
+          - generic [ref=f1e77]: Next day / Today
+        - generic [ref=f1e79]:
+          - generic [ref=f1e80]: "07"
+          - generic [ref=f1e81]: Loaded
+        - generic [ref=f1e82]:
+          - generic [ref=f1e83]: "80412771"
+          - generic [ref=f1e84]: 8 picks · Orange cone
+          - generic [ref=f1e85]: M. de Vries
+      - generic [ref=f1e86]:
+        - generic [ref=f1e88]:
+          - generic [ref=f1e89]: 80412771 · 8 picks
+          - heading "Allocated" [level=3] [ref=f1e90]
+          - paragraph [ref=f1e91]: "The delivery is registered once — number and picks — and the allocation engine picks the marker automatically: a plain cone, or — when more variety is needed — a cone with a disc or hex on top, a disc or hex on its own, or two toppers stacked in different colors (disc + disc, hex + hex, disc + hex)."
+          - generic [ref=f1e92]: "Same as today: 1 card per delivery"
+          - generic [ref=f1e93]: "New: the marker is calculated, not eyeballed"
+        - generic [ref=f1e95]:
+          - generic [ref=f1e96]: 80412857 · 14 picks
+          - heading "Picking" [level=3] [ref=f1e97]
+          - paragraph [ref=f1e98]: "The card shows who's working it: the VNA operator who moved it into Picking is identified on the card itself, not just in their head."
+          - generic [ref=f1e99]: "Same as today: the VNA operator moves the card"
+          - generic [ref=f1e100]: "New: you can see which operator is picking each order"
+        - generic [ref=f1e102]:
+          - generic [ref=f1e103]: 80412838 · 9 picks
+          - heading "Pick dropped" [level=3] [ref=f1e104]
+          - paragraph [ref=f1e105]: Waiting at the aisle head. The age bar under the card turns yellow, then red, if it sits longer than expected in a status — without anyone having to go look.
+          - generic [ref=f1e106]: "New: visual alert for time-in-status (SLA)"
+        - generic [ref=f1e108]:
+          - generic [ref=f1e109]: 80412802 · 3 picks
+          - heading "Packing" [level=3] [ref=f1e110]
+          - paragraph [ref=f1e111]: You can see who's doing the packing for the delivery — the same information that today only exists if someone asks in person now stays on the card and in the history.
+          - generic [ref=f1e112]: "Same as today: packing counts against the labels"
+          - generic [ref=f1e113]: "New: visible from any screen, not just standing there"
+        - generic [ref=f1e115]:
+          - generic [ref=f1e116]: 80412790 · 12 picks
+          - heading "Strap and sealing" [level=3] [ref=f1e117]
+          - paragraph [ref=f1e118]: Last step before it's ready to go out. The system already knows which country it's headed to — 16 destinations, each with its own flag, split between Europe and Export.
+        - generic [ref=f1e120]:
+          - generic [ref=f1e121]: 80412917 · 6 picks
+          - heading "Pick up next day / Pick up today" [level=3] [ref=f1e122]
+          - paragraph [ref=f1e123]: Priority deliveries stand out on their own. The whole board can be filtered between Europe and Export — something impossible to do by eye on a physical board with 20 cards.
+          - generic [ref=f1e124]: "New: Europe / Export filter across the whole board"
+        - generic [ref=f1e126]:
+          - generic [ref=f1e127]: 80412968 · 5 picks
+          - heading "Loaded → close-out" [level=3] [ref=f1e128]
+          - paragraph [ref=f1e129]: Once the truck is loaded, the marker stays "on loan" until the cone comes back to the rack. The system remembers on its own, and frees up the color for the next delivery once the return is confirmed.
+          - generic [ref=f1e130]: "New: real-time cone stock, nothing slips out of view"
+  - generic [ref=f1e132]:
+    - generic [ref=f1e133]:
+      - generic [ref=f1e134]: 03 — Beyond replicating the whiteboard
+      - heading "Eight things the physical board could never do" [level=2] [ref=f1e135]
+      - paragraph [ref=f1e136]: It's not just digitizing the card — the system solves problems that today aren't even attempted.
+    - generic [ref=f1e138]:
+      - generic [ref=f1e139]:
+        - heading "Marker allocation engine" [level=4] [ref=f1e143]
+        - paragraph [ref=f1e144]: Plain cone first, then cone + disc/hex, a disc or hex alone, or two toppers stacked in different colors (disc + disc, hex + hex, disc + hex) for 1–6 picks; always a single color and shape from 7 picks up — the same rule applied by hand today, now calculated on its own.
+      - generic [ref=f1e145]:
+        - heading "16 destinations, Europe vs. Export" [level=4] [ref=f1e148]
+        - paragraph [ref=f1e149]: USA, Vietnam, Mexico, Taiwan, China, Thailand, Israel, Germany, the Netherlands, Czech Republic, Hungary (Üllő and Komárom), Singapore, South Korea, the Philippines, Malaysia — each with its own flag and filterable in one click.
+      - generic [ref=f1e150]:
+        - heading "Time-in-status alerts" [level=4] [ref=f1e154]
+        - paragraph [ref=f1e155]: Every card carries a bar that warns when it's spent longer than expected in a status — the team leader no longer depends on looking at the board at the right moment.
+      - generic [ref=f1e156]:
+        - heading "Full activity history" [level=4] [ref=f1e159]
+        - paragraph [ref=f1e160]: Every status change is logged with who did it and at what time, forever — something a magnetic card can never keep.
+      - generic [ref=f1e161]:
+        - heading "Live sync + TV mode" [level=4] [ref=f1e165]
+        - paragraph [ref=f1e166]: Several open screens update each other automatically, and the wall view (TV mode) shows the full board with no controls, for the team leader's constant observation.
+      - generic [ref=f1e167]:
+        - heading "Live cone stock" [level=4] [ref=f1e170]
+        - paragraph [ref=f1e171]: How many cones, discs and hexes are free and in use in each color, at every moment — no counting by hand on the rack.
+      - generic [ref=f1e172]:
+        - heading "Stock you can correct" [level=4] [ref=f1e176]
+        - paragraph [ref=f1e177]: Lost a few cones, or a new box arrived? Anyone with return rights sets the new total in a few clicks, and the change lands in the activity log.
+      - generic [ref=f1e178]:
+        - heading "Trucks screen" [level=4] [ref=f1e183]
+        - paragraph [ref=f1e184]: "Every truck coming to load: plates, driver, carrier (ATC, Expeditor, DSV), Europe or Export, its Load IDs, and the deliveries and pallets in each — with each delivery's live status from the board."
+  - generic [ref=f1e187]:
+    - generic [ref=f1e188]: 04 — Real-time status
+    - heading "The WMS moves the card, so nobody has to" [level=2] [ref=f1e189]
+    - paragraph [ref=f1e190]: "The goal: the VNA operator no longer swipes the card when finishing a pick or a drop. The board can read a small CSV exported by the warehouse system (WMS) every minute and move the deliveries by itself — what you see on screen is what the system already knows."
+    - generic [ref=f1e191]:
+      - generic [ref=f1e192]:
+        - generic [ref=f1e193]:
+          - text: What the WMS would update
+          - generic [ref=f1e194]: Automatic status changes
+        - list [ref=f1e195]:
+          - listitem [ref=f1e196]:
+            - generic [ref=f1e198]: Picking and Pick dropped — the VNA operator just works in the WMS; no card to drag.
+          - listitem [ref=f1e199]:
+            - generic [ref=f1e201]: Packing, Strap and sealing and Pick up next day — as packing completes each step in the WMS.
+          - listitem [ref=f1e202]:
+            - generic [ref=f1e204]: The other steps (registering the delivery, loading, cone return) stay manual for now. Manual moves also remain as a fallback if the file is late.
+      - generic [ref=f1e205]:
+        - generic [ref=f1e206]:
+          - text: Columns the board needs
+          - generic [ref=f1e207]: Operational data only
+        - list [ref=f1e208]:
+          - listitem [ref=f1e209]:
+            - generic [ref=f1e211]: Delivery number — the key that matches each row to its card.
+          - listitem [ref=f1e212]:
+            - generic [ref=f1e214]: Status — the WMS status code, mapped to the board columns.
+          - listitem [ref=f1e215]:
+            - generic [ref=f1e217]: Status timestamp — when it last changed, to drive the time-in-status alerts.
+          - listitem [ref=f1e218]:
+            - generic [ref=f1e220]: Destination country code — flag and Europe / Export filter.
+          - listitem [ref=f1e221]:
+            - generic [ref=f1e223]: Pick labels and pallet count — sizes the marker and the cone stock.
+          - listitem [ref=f1e224]:
+            - generic [ref=f1e226]: Priority flag and planned pick-up (today / next day).
+      - generic [ref=f1e227]:
+        - generic [ref=f1e228]:
+          - text: What stays out
+          - generic [ref=f1e229]: Nothing sensitive leaves the WMS
+        - list [ref=f1e230]:
+          - listitem [ref=f1e231]:
+            - generic [ref=f1e233]: No customer names, prices, order values or article detail — only what is needed to read a delivery's status at a glance.
+      - generic [ref=f1e234]:
+        - generic [ref=f1e235]:
+          - text: What the team gets
+          - generic [ref=f1e236]: Decisions from the screen
+        - list [ref=f1e237]:
+          - listitem [ref=f1e238]:
+            - generic [ref=f1e240]: Every change is written to the history as coming from the WMS, with its time.
+          - listitem [ref=f1e241]:
+            - generic [ref=f1e243]: The team leader sees late, stuck or priority deliveries without walking to the board — and the Trucks screen shows which deliveries are ready for each Load ID.
+  - generic [ref=f1e246]:
+    - generic [ref=f1e247]: 05 — Next steps
+    - 'heading "We propose starting small: one shift, one area, measure, and only then scale." [level=2] [ref=f1e248]'
+    - list [ref=f1e249]:
+      - listitem [ref=f1e250]:
+        - generic [ref=f1e251]: Step 1
+        - heading "Small pilot" [level=5] [ref=f1e252]
+        - paragraph [ref=f1e253]: One shift or one aisle, running alongside the physical board, without pulling it yet.
+      - listitem [ref=f1e254]:
+        - generic [ref=f1e255]: Step 2
+        - heading "Measure adoption" [level=5] [ref=f1e256]
+        - paragraph [ref=f1e257]: Does the team leader check the screen instead of walking to the board? Do fewer cards go missing?
+      - listitem [ref=f1e258]:
+        - generic [ref=f1e259]: Step 3
+        - heading "Connect the WMS feed" [level=5] [ref=f1e260]
+        - paragraph [ref=f1e261]: Feed the pilot from the one-minute CSV so statuses move on their own, still alongside the physical board.
+    - generic [ref=f1e262]:
+      - generic [ref=f1e263]: See the live demo
+      - generic [ref=f1e264]: Schedule with IT
+    - paragraph [ref=f1e265]:
+      - text: The working demo is at
+      - code [ref=f1e266]: Outbound Digital Board.html
+      - text: — it opens in any browser, nothing to install, with sample data already loaded.
