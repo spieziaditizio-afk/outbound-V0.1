@@ -391,6 +391,29 @@ main{flex:1;min-height:0;position:relative}
 .ldbox{border:1px solid var(--rule-soft);padding:10px;margin-bottom:10px;background:var(--board)}
 
 /* ============================================================
+   DASHBOARD
+   ============================================================ */
+.dashgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:var(--gap);align-items:start;margin-top:var(--gap)}
+.dcard{background:var(--tile);border:1px solid var(--rule);border-radius:2px}
+.dcard > header{padding:12px 14px;border-bottom:1px solid var(--rule-soft)}
+.dcard > header .nm{font-weight:600}
+.dcard > header .ds{color:var(--ink-2);font-size:.84em;margin-top:2px;line-height:1.4}
+.dcard .bd{padding:12px 14px}
+.hbars{display:flex;align-items:flex-end;gap:3px;height:150px}
+.hbars .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;font-size:.8em;color:var(--ink-2)}
+.hbars .col i{display:block;width:100%;background:var(--chrome);min-height:2px}
+.hbars .col.now i{background:var(--accent)}
+.hbars .col b{font-weight:600;color:var(--ink);margin-bottom:3px}
+.drow{display:grid;grid-template-columns:128px 1fr 118px;gap:10px;align-items:center;padding:5px 0;font-size:.9em}
+.drow .v{text-align:right;color:var(--ink-2);font-size:.9em}
+.drow .v b{color:var(--ink);font-weight:600}
+.drow.bad .v b{color:var(--alert)}
+.dbar{display:block;height:12px;background:var(--board-2);border:1px solid var(--rule-soft);position:relative}
+.dbar i{position:absolute;top:0;bottom:0;left:0;display:block;background:var(--chrome)}
+.dbar em{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--accent)}
+.drow.bad .dbar i{background:var(--alert)}
+
+/* ============================================================
    TABLES (returns / audit)
    ============================================================ */
 table.tbl{width:100%;border-collapse:collapse;background:var(--tile);border:1px solid var(--rule)}
@@ -521,6 +544,7 @@ html[data-mode="tv"] .kpi b{font-size:26px}
     <div class="where">Special Operations Area &middot; Sevenum</div>
     <nav class="nav" id="nav">
       <button data-view="board" aria-current="true">Board</button>
+      <button data-view="dash">Dashboard</button>
       <button data-view="cones">Cone stock</button>
       <button data-view="returns">Cone returns</button>
       <button data-view="trucks">Trucks</button>
@@ -554,6 +578,20 @@ html[data-mode="tv"] .kpi b{font-size:26px}
         <div class="board" id="board"></div>
       </div>
       <aside id="drawer" aria-label="Delivery detail"></aside>
+    </section>
+
+    <!-- ---------- DASHBOARD ---------- -->
+    <section class="view hidden" id="viewDash">
+      <div class="pad">
+        <div class="vhead">
+          <div>
+            <h2>Today</h2>
+            <p id="dashSub"></p>
+          </div>
+        </div>
+        <div class="kpis" id="dashKpis"></div>
+        <div class="dashgrid" id="dashGrid"></div>
+      </div>
     </section>
 
     <!-- ---------- CONE STOCK ---------- -->
@@ -1377,6 +1415,7 @@ function renderAll(){
   renderWhoami();
   renderKpis();
   renderBoard();
+  renderDash();
   renderCones();
   renderReturns();
   renderTrucks();
@@ -2125,6 +2164,94 @@ function renderReturns(){
 }
 
 /* ============================================================
+   15c. RENDER — dashboard (everything since local midnight)
+   ============================================================ */
+/* Warehouse hours: Monday to Friday, 06:00 to 22:00. */
+const WH_OPEN = 6, WH_CLOSE = 22;
+function warehouseOpenNow(){ const d = new Date(); return d.getDay() >= 1 && d.getDay() <= 5 && d.getHours() >= WH_OPEN && d.getHours() < WH_CLOSE; }
+
+function renderDash(){
+  const t0 = new Date().setHours(0, 0, 0, 0);
+  const today = ts => ts >= t0;
+  const ds = state.deliveries;
+  const created = ds.filter(d => today(d.createdAt));
+  const loadedToday = ds.filter(d => d.loadedAt && today(d.loadedAt));
+  const pal = list => list.reduce((n, d) => n + d.picks, 0);
+  const active = activeDeliveries();
+  const late = active.filter(d => ageState(d).s === 'late').length;
+  const writtenOff = ds.filter(d => d.returned && today(d.returned.at)).reduce((n, d) => n + d.returned.lost.reduce((a, b) => a + b, 0), 0);
+  const returnedToday = ds.filter(d => d.returned && today(d.returned.at)).length;
+
+  $('#dashSub').textContent = (warehouseOpenNow() ? 'Warehouse open' : 'Warehouse closed now') + ' (Mon–Fri, 06:00–22:00). What the shift has done today, and what is on the floor right now.';
+  $('#dashKpis').innerHTML = [
+    kpi(created.length, 'registered today'),
+    kpi(loadedToday.length, 'loaded today'),
+    kpi(pal(loadedToday), 'pallets loaded'),
+    kpi(active.length, 'on the board now'),
+    kpi(late, 'running late now', late > 0),
+    kpi(writtenOff, 'cone pieces written off', writtenOff > 0)
+  ].join('');
+
+  /* status moves per hour (every history entry after the first is a move) */
+  const moves = ds.flatMap(d => d.history.slice(1).map(h => ({ at:h.at, who:h.byName }))).filter(m => today(m.at));
+  const nowH = new Date().getHours();
+  const perHour = [];
+  for (let h = WH_OPEN; h < WH_CLOSE; h++) perHour.push({ h, n: moves.filter(m => new Date(m.at).getHours() === h).length });
+  const maxH = Math.max(1, ...perHour.map(x => x.n));
+
+  /* average time in each stage, for stages that finished today */
+  const stageRows = STATUSES.map(st => {
+    const spans = [];
+    for (const d of ds) d.history.forEach((h, i) => {
+      const nx = d.history[i + 1];
+      if (h.status === st.id && nx && today(nx.at)) spans.push((nx.at - h.at) / 60000);
+    });
+    return { st, n:spans.length, avg: spans.length ? Math.round(spans.reduce((a, b) => a + b, 0) / spans.length) : 0 };
+  }).filter(r => r.n);
+  const maxS = Math.max(1, ...stageRows.map(r => Math.max(r.avg, r.st.sla || 0)));
+
+  /* by destination region */
+  const region = r => ({ reg: created.filter(d => DEST_BY_ID[d.country].region === r), ld: loadedToday.filter(d => DEST_BY_ID[d.country].region === r) });
+  const regRows = [['EU', 'Europe'], ['EXPORT', 'Export']].map(([r, name]) => ({ name, ...region(r) }));
+  const maxR = Math.max(1, ...regRows.map(r => Math.max(r.reg.length, r.ld.length)));
+
+  /* who moved what */
+  const byWho = {};
+  moves.forEach(m => { byWho[m.who] = (byWho[m.who] || 0) + 1; });
+  const who = Object.entries(byWho).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const maxW = Math.max(1, ...who.map(x => x[1]));
+
+  const trucks = state.trucks || [];
+  const trRows = trucks.flatMap(t => t.loads.flatMap(l => l.rows));
+  const trReady = trRows.filter(r => deliveryStatus(r.no).cls === 'ok').length;
+
+  const bar = (v, max, extra) => `<span class="dbar"><i style="width:${Math.round(v / max * 100)}%"></i>${extra || ''}</span>`;
+  const card = (nm, ds_, body) => `<section class="dcard"><header><div class="nm">${nm}</div><div class="ds">${ds_}</div></header><div class="bd">${body}</div></section>`;
+
+  $('#dashGrid').innerHTML = [
+    card('Activity by hour', 'Status changes per hour, 06:00 to 22:00. Current hour in amber.',
+      `<div class="hbars">${perHour.map(x => `<div class="col${x.h === nowH ? ' now' : ''}"><b>${x.n}</b><i style="height:${Math.round(x.n / maxH * 100)}px"></i>${String(x.h).padStart(2, '0')}</div>`).join('')}</div>`),
+    card('Time in each stage', 'Average for stages finished today. The amber tick is the target time.',
+      stageRows.length ? stageRows.map(r => `<div class="drow${r.st.sla && r.avg > r.st.sla ? ' bad' : ''}">
+        <span>${esc(r.st.name)}</span>
+        ${bar(r.avg, maxS, r.st.sla ? `<em style="left:${Math.round(r.st.sla / maxS * 100)}%"></em>` : '')}
+        <span class="v"><b>${esc(dur(r.avg))}</b>${r.st.sla ? ' / ' + r.st.sla : ''}</span></div>`).join('')
+        : '<div class="help">No stage has finished yet today.</div>'),
+    card('By destination', 'Registered and loaded today, in deliveries.',
+      regRows.map(r => `<div class="drow"><span>${r.name} &middot; registered</span>${bar(r.reg.length, maxR)}<span class="v"><b>${r.reg.length}</b> &middot; ${pal(r.reg)} pallets</span></div>
+        <div class="drow"><span>${r.name} &middot; loaded</span>${bar(r.ld.length, maxR)}<span class="v"><b>${r.ld.length}</b> &middot; ${pal(r.ld)} pallets</span></div>`).join('')),
+    card('Team activity', 'Status changes made today, by person.',
+      who.length ? who.map(([n, c]) => `<div class="drow"><span>${esc(n)}</span>${bar(c, maxW)}<span class="v"><b>${c}</b></span></div>`).join('')
+        : '<div class="help">Nothing moved yet today.</div>'),
+    card('Trucks', 'Trucks on the list and how ready their deliveries are.',
+      `<div class="drow"><span>Trucks</span><span></span><span class="v"><b>${trucks.length}</b></span></div>
+       <div class="drow"><span>Deliveries on trucks</span><span></span><span class="v"><b>${trRows.length}</b> &middot; ${trRows.reduce((n, r) => n + r.pallets, 0)} pallets</span></div>
+       <div class="drow"><span>Ready to load</span>${bar(trReady, Math.max(1, trRows.length))}<span class="v"><b>${trReady}</b> / ${trRows.length}</span></div>
+       <div class="drow"><span>Cone returns</span><span></span><span class="v"><b>${returnedToday}</b> done &middot; ${loadedDeliveries().length} waiting</span></div>`)
+  ].join('');
+}
+
+/* ============================================================
    16. RENDER — activity
    ============================================================ */
 function renderLog(){
@@ -2201,7 +2328,7 @@ function signOut(){
 function setView(v){
   view = v;
   $$('#nav button').forEach(b => b.setAttribute('aria-current', String(b.dataset.view === v)));
-  const map = { board:'#viewBoard', cones:'#viewCones', returns:'#viewReturns', trucks:'#viewTrucks', log:'#viewLog' };
+  const map = { board:'#viewBoard', cones:'#viewCones', returns:'#viewReturns', trucks:'#viewTrucks', dash:'#viewDash', log:'#viewLog' };
   Object.keys(map).forEach(k => $(map[k]).classList.toggle('hidden', k !== v));
 }
 
@@ -2286,7 +2413,7 @@ function boot(){
   });
 
   /* Keep the ageing bars and "x min here" honest without a server. */
-  setInterval(() => { if (me && !$('#modalHost').innerHTML) { renderKpis(); renderBoard(); } }, 30000);
+  setInterval(() => { if (me && !$('#modalHost').innerHTML) { renderKpis(); renderBoard(); renderDash(); } }, 30000);
 
   /* Same browser, second tab: stay signed in so the cross-tab demo is quick. */
   let remembered = null;
